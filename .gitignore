@@ -1,0 +1,76 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Node / Frontend (React)
+node_modules/
+dist/
+build/
+.next/
+out/
+.cache/
+coverage/
+
+# Java / Spring Boot / Maven / Gradle
+target/
+*.class
+*.jar
+*.war
+*.ear
+.gradle/
+build/
+bin/
+
+# Python / AI Service
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Desktop Agent Build Artifacts
+desktop-agent/dist/
+desktop-agent/build/
+
+# Docker
+.docker/
