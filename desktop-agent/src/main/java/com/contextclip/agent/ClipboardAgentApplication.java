@@ -8,6 +8,7 @@ import java.util.concurrent.CountDownLatch;
 public class ClipboardAgentApplication {
 
     private static final CountDownLatch KEEP_ALIVE_LATCH = new CountDownLatch(1);
+    private static final BackendClient BACKEND_CLIENT = new BackendClient();
 
     public static void main(String[] args) {
         printBanner();
@@ -57,6 +58,14 @@ public class ClipboardAgentApplication {
         System.out.println("Content:");
         System.out.println(content);
         System.out.println("---------------------------------");
+
+        String backendId = BACKEND_CLIENT.sendClipboardContent(content);
+        if (backendId != null) {
+            System.out.println("Clipboard sent to backend successfully.");
+            System.out.println("Backend ID: " + backendId);
+        } else {
+            System.out.println("Backend unavailable. Clipboard captured locally but was not sent.");
+        }
         System.out.flush();
     }
 }
