@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.contextclip.dto.ClipboardRequest;
@@ -40,5 +41,13 @@ public class ClipboardController {
     public ResponseEntity<List<ClipboardEntry>> getAllClipboardEntries() {
         return ResponseEntity.ok(clipboardService.getAll());
     }
-}
 
+    @GetMapping("/search")
+    public ResponseEntity<List<ClipboardEntry>> search(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String technology,
+            @RequestParam(required = false) String category) {
+        return ResponseEntity.ok(clipboardService.search(q, type, technology, category));
+    }
+}

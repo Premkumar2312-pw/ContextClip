@@ -34,6 +34,15 @@ public class ClipboardService {
         return clipboardRepository.findAll();
     }
 
+    public List<ClipboardEntry> search(String q, String type, String technology, String category) {
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+        String cleanType = (type != null && !type.trim().isEmpty()) ? type.trim() : null;
+        String cleanTech = (technology != null && !technology.trim().isEmpty()) ? technology.trim() : null;
+        String cleanCat = (category != null && !category.trim().isEmpty()) ? category.trim() : null;
+
+        return clipboardRepository.search(cleanQ, cleanType, cleanTech, cleanCat);
+    }
+
     public void clear() {
         clipboardRepository.deleteAll();
     }
