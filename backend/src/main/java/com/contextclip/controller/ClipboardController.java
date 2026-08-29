@@ -1,6 +1,7 @@
 package com.contextclip.controller;
 
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.contextclip.dto.ClipboardExplanationResponse;
+import com.contextclip.dto.ClipboardQuestionRequest;
+import com.contextclip.dto.ClipboardQuestionResponse;
 import com.contextclip.dto.ClipboardRequest;
 import com.contextclip.dto.ClipboardResponse;
 import com.contextclip.dto.ClipboardSummaryResponse;
@@ -93,6 +96,28 @@ public class ClipboardController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred");
+        }
+    }
+
+    @PostMapping("/ask")
+    public ResponseEntity<?> ask(@RequestBody(required = false) ClipboardQuestionRequest request) {
+        if (request == null || request.question() == null || request.question().trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Bad Request", "message", "Question cannot be empty or blank", "status", 400));
+        }
+
+        if (request.question().length() > ClipboardService.MAX_QUESTION_LENGTH) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Bad Request", "message", "Question exceeds maximum allowed length of " + ClipboardService.MAX_QUESTION_LENGTH + " characters", "status", 400));
+        }
+
+        try {
+            ClipboardQuestionResponse response = clipboardService.askClipboard(request.question());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Bad Request", "message", e.getMessage(), "status", 400));
+        } catch (AiServiceException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", "Bad Gateway", "message", e.getMessage(), "status", 502));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Internal Server Error", "message", "An unexpected error occurred", "status", 500));
         }
     }
 }

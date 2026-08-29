@@ -132,3 +132,4 @@ class ClipboardSummarizationTest {
                 .andExpect(jsonPath("$.status").value("RECEIVED"));
     }
 }
+
