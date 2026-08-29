@@ -1,18 +1,22 @@
 package com.contextclip.controller;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.contextclip.dto.ClipboardExplanationResponse;
 import com.contextclip.dto.ClipboardRequest;
 import com.contextclip.dto.ClipboardResponse;
+import com.contextclip.exception.AiServiceException;
 import com.contextclip.model.ClipboardEntry;
 import com.contextclip.service.ClipboardService;
 
@@ -49,5 +53,25 @@ public class ClipboardController {
             @RequestParam(required = false) String technology,
             @RequestParam(required = false) String category) {
         return ResponseEntity.ok(clipboardService.search(q, type, technology, category));
+    }
+
+    @GetMapping("/{id}/explain")
+    public ResponseEntity<?> explain(@PathVariable Long id) {
+        if (id == null || id <= 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid clipboard entry ID");
+        }
+
+        try {
+            ClipboardExplanationResponse response = clipboardService.explain(id);
+            return ResponseEntity.ok(response);
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (AiServiceException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred");
+        }
     }
 }

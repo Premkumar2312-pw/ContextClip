@@ -1,6 +1,6 @@
 # ContextClip AI Service
 
-The ContextClip AI Service is a lightweight, standalone Python microservice built with FastAPI and the official OpenAI Python SDK. It provides generative AI intelligence to explain, summarize, and answer questions about developer clipboard history.
+The ContextClip AI Service is a lightweight, standalone Python microservice built with FastAPI and the official Google Gemini Python SDK (`google-genai`) using the current Interactions API. It provides generative AI intelligence to explain, summarize, and answer questions about developer clipboard history.
 
 ## Technology Stack
 
@@ -8,7 +8,7 @@ The ContextClip AI Service is a lightweight, standalone Python microservice buil
 - **FastAPI**: Modern, high-performance web framework for APIs
 - **Uvicorn**: Lightning-fast ASGI server
 - **Pydantic v2**: Data validation and response schemas
-- **OpenAI Python SDK**: Direct integration with OpenAI models (default: `gpt-4o-mini`)
+- **Google GenAI Python SDK (`google-genai`)**: Official SDK for Google Gemini models via Interactions API (default: `gemini-3.6-flash`)
 - **Pytest & HTTPX**: Unit and integration testing
 
 ## Project Structure
@@ -20,7 +20,7 @@ ai-service/
 │   ├── main.py
 │   └── services/
 │       ├── __init__.py
-│       └── openai_service.py
+│       └── gemini_service.py
 ├── tests/
 │   ├── __init__.py
 │   └── test_main.py
@@ -35,8 +35,8 @@ Configuration is loaded from environment variables or a local `.env` file (which
 
 | Variable | Required | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `OPENAI_API_KEY` | Yes (for AI generation) | None | OpenAI API secret key |
-| `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI chat completion model name |
+| `GEMINI_API_KEY` | Yes (for AI generation) | None | Google Gemini API key (Free Tier compatible) |
+| `GEMINI_MODEL` | No | `gemini-3.6-flash` | Gemini model name |
 | `AI_SERVICE_PORT` | No | `8000` | Port for the FastAPI server |
 
 ## Installation & Setup
@@ -74,7 +74,7 @@ The interactive OpenAPI documentation will be accessible at `http://localhost:80
 
 ### 1. Health Check
 
-Checks whether the AI service is online. Does **not** require an OpenAI API key or make external network calls.
+Checks whether the AI service is online. Does **not** require a Gemini API key or make external network calls.
 
 - **Method**: `GET`
 - **URL**: `/api/ai/health`
@@ -88,7 +88,7 @@ Checks whether the AI service is online. Does **not** require an OpenAI API key 
 
 ### 2. Generate AI Response
 
-Sends a prompt to OpenAI and returns the generated text explanation.
+Sends a prompt to the Google Gemini Interactions API and returns the generated text explanation.
 
 - **Method**: `POST`
 - **URL**: `/api/ai/generate`
@@ -102,13 +102,13 @@ Sends a prompt to OpenAI and returns the generated text explanation.
 - **Response** (`200 OK`):
   ```json
   {
-    "response": "A HashMap in Java is a data structure used to store key-value pairs..."
+    "response": "A Java HashMap is a data structure that stores data in key-value pairs..."
   }
   ```
 - **Error Responses**:
   - `400 Bad Request`: Empty, blank, or excessively long (>10,000 characters) prompt.
-  - `500 Internal Server Error`: Missing `OPENAI_API_KEY` configuration.
-  - `502 Bad Gateway`: Upstream OpenAI API error or network failure.
+  - `500 Internal Server Error`: Missing `GEMINI_API_KEY` configuration.
+  - `502 Bad Gateway`: Upstream Gemini API error or network failure.
 
 ## Automated Testing
 
@@ -118,4 +118,4 @@ Run the automated test suite using `pytest`:
 pytest -v
 ```
 
-Automated tests use mocks for external OpenAI API calls and execute without requiring an active API key or internet access.
+Automated tests use mocks for external Gemini API calls and execute without requiring an active API key or internet access.

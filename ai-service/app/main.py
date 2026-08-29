@@ -1,20 +1,19 @@
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import os
 
-from app.services.openai_service import OpenAIService
+from app.services.gemini_service import GeminiService
 
 # Load local .env file if present
 load_dotenv()
 
 app = FastAPI(
     title="ContextClip AI Service",
-    description="Standalone Python AI Service for ContextClip intelligent clipboard system",
+    description="Standalone Python AI Service for ContextClip intelligent clipboard system (Google Gemini API)",
     version="0.1.0"
 )
 
-openai_service = OpenAIService()
+gemini_service = GeminiService()
 
 MAX_PROMPT_LENGTH = 10000
 
@@ -64,7 +63,7 @@ def generate(request: GenerateRequest):
         )
 
     try:
-        result = openai_service.generate_response(request.prompt.strip())
+        result = gemini_service.generate_response(request.prompt.strip())
         return GenerateResponse(response=result)
     except ValueError as e:
         raise HTTPException(
