@@ -35,7 +35,7 @@ public class AiServiceClient {
                 .build();
     }
 
-    public String generateExplanation(String prompt) {
+    public String generateResponse(String prompt) {
         try {
             String requestBody = objectMapper.writeValueAsString(Map.of("prompt", prompt));
             HttpRequest request = HttpRequest.newBuilder()
@@ -64,5 +64,9 @@ public class AiServiceClient {
         } catch (Exception e) {
             throw new AiServiceException("Failed to communicate with AI Service: " + e.getMessage(), e);
         }
+    }
+
+    public String generateExplanation(String prompt) {
+        return generateResponse(prompt);
     }
 }

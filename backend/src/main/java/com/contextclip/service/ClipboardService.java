@@ -4,6 +4,7 @@ import com.contextclip.client.AiServiceClient;
 import com.contextclip.classifier.ClassificationResult;
 import com.contextclip.classifier.ClipboardClassifier;
 import com.contextclip.dto.ClipboardExplanationResponse;
+import com.contextclip.dto.ClipboardSummaryResponse;
 import com.contextclip.model.ClipboardEntry;
 import com.contextclip.repository.ClipboardRepository;
 import org.springframework.stereotype.Service;
@@ -60,14 +61,46 @@ public class ClipboardService {
         }
 
         String prompt = buildExplanationPrompt(entry);
-        String explanation = aiServiceClient.generateExplanation(prompt);
+        String explanation = aiServiceClient.generateResponse(prompt);
         return new ClipboardExplanationResponse(entry.getId(), explanation);
+    }
+
+    public ClipboardSummaryResponse summarize(Long id) {
+        ClipboardEntry entry = clipboardRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"));
+
+        if (entry.getContent() == null || entry.getContent().trim().isEmpty()) {
+            throw new IllegalArgumentException("Clipboard content cannot be empty or blank");
+        }
+
+        String prompt = buildSummarizationPrompt(entry);
+        String summary = aiServiceClient.generateResponse(prompt);
+        return new ClipboardSummaryResponse(entry.getId(), summary);
     }
 
     public String buildExplanationPrompt(ClipboardEntry entry) {
         return String.format("""
             You are an assistant inside ContextClip, an intelligent clipboard knowledge system for developers and students.
             Explain the following clipboard content clearly, accurately, and concisely.
+            Detected Type: %s
+            Detected Technology: %s
+            Detected Category: %s
+
+            Clipboard Content:
+            %s
+            """,
+            entry.getType() != null ? entry.getType() : "UNKNOWN",
+            entry.getTechnology() != null ? entry.getTechnology() : "UNKNOWN",
+            entry.getCategory() != null ? entry.getCategory() : "UNKNOWN",
+            entry.getContent()
+        ).trim();
+    }
+
+    public String buildSummarizationPrompt(ClipboardEntry entry) {
+        return String.format("""
+            You are an assistant inside ContextClip, an intelligent clipboard knowledge system for developers and students.
+            Summarize the following clipboard content accurately, clearly, and concisely.
+            Preserve important technical meaning, do not invent information, and use plain language appropriate for developers and students.
             Detected Type: %s
             Detected Technology: %s
             Detected Category: %s

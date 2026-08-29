@@ -44,7 +44,7 @@ class ClipboardExplanationTest {
 
     @Test
     void testExplainExistingEntrySuccess() throws Exception {
-        when(aiServiceClient.generateExplanation(anyString()))
+        when(aiServiceClient.generateResponse(anyString()))
                 .thenReturn("This command starts the Docker Compose services and rebuilds images.");
 
         mockMvc.perform(get("/api/clipboard/" + savedEntry.getId() + "/explain"))
@@ -61,7 +61,7 @@ class ClipboardExplanationTest {
 
     @Test
     void testExplainAiServiceUnavailableReturns502() throws Exception {
-        when(aiServiceClient.generateExplanation(anyString()))
+        when(aiServiceClient.generateResponse(anyString()))
                 .thenThrow(new AiServiceException("Failed to communicate with AI Service"));
 
         mockMvc.perform(get("/api/clipboard/" + savedEntry.getId() + "/explain"))
@@ -70,14 +70,14 @@ class ClipboardExplanationTest {
 
     @Test
     void testExplainPromptContainsContentAndMetadata() throws Exception {
-        when(aiServiceClient.generateExplanation(anyString()))
+        when(aiServiceClient.generateResponse(anyString()))
                 .thenReturn("Mocked explanation");
 
         mockMvc.perform(get("/api/clipboard/" + savedEntry.getId() + "/explain"))
                 .andExpect(status().isOk());
 
         ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
-        verify(aiServiceClient).generateExplanation(promptCaptor.capture());
+        verify(aiServiceClient).generateResponse(promptCaptor.capture());
 
         String capturedPrompt = promptCaptor.getValue();
         assertThat(capturedPrompt).contains("docker compose up --build");
@@ -95,4 +95,3 @@ class ClipboardExplanationTest {
         assertThat(prompt).contains("Detected Category: DEVOPS");
     }
 }
-

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.contextclip.dto.ClipboardExplanationResponse;
 import com.contextclip.dto.ClipboardRequest;
 import com.contextclip.dto.ClipboardResponse;
+import com.contextclip.dto.ClipboardSummaryResponse;
 import com.contextclip.exception.AiServiceException;
 import com.contextclip.model.ClipboardEntry;
 import com.contextclip.service.ClipboardService;
@@ -63,6 +64,26 @@ public class ClipboardController {
 
         try {
             ClipboardExplanationResponse response = clipboardService.explain(id);
+            return ResponseEntity.ok(response);
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (AiServiceException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred");
+        }
+    }
+
+    @GetMapping("/{id}/summarize")
+    public ResponseEntity<?> summarize(@PathVariable Long id) {
+        if (id == null || id <= 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid clipboard entry ID");
+        }
+
+        try {
+            ClipboardSummaryResponse response = clipboardService.summarize(id);
             return ResponseEntity.ok(response);
         } catch (NoSuchElementException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
