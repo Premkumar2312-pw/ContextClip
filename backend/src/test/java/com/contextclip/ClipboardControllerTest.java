@@ -49,26 +49,32 @@ class ClipboardControllerTest {
     }
 
     @Test
-    void testGetClipboardReturnsPersistedEntriesWithCapturedAt() throws Exception {
+    void testGetClipboardReturnsPersistedEntriesWithClassification() throws Exception {
         mockMvc.perform(post("/api/clipboard")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"First item\"}"))
+                        .content("{\"content\":\"docker compose up --build\"}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/clipboard")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"Second item\"}"))
+                        .content("{\"content\":\"SELECT * FROM employees;\"}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/clipboard"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].id").value(notNullValue()))
-                .andExpect(jsonPath("$[0].content").value("First item"))
+                .andExpect(jsonPath("$[0].content").value("docker compose up --build"))
                 .andExpect(jsonPath("$[0].capturedAt").value(notNullValue()))
+                .andExpect(jsonPath("$[0].type").value("TERMINAL_COMMAND"))
+                .andExpect(jsonPath("$[0].technology").value("DOCKER"))
+                .andExpect(jsonPath("$[0].category").value("DEVOPS"))
                 .andExpect(jsonPath("$[1].id").value(notNullValue()))
-                .andExpect(jsonPath("$[1].content").value("Second item"))
-                .andExpect(jsonPath("$[1].capturedAt").value(notNullValue()));
+                .andExpect(jsonPath("$[1].content").value("SELECT * FROM employees;"))
+                .andExpect(jsonPath("$[1].capturedAt").value(notNullValue()))
+                .andExpect(jsonPath("$[1].type").value("SQL"))
+                .andExpect(jsonPath("$[1].technology").value("SQL"))
+                .andExpect(jsonPath("$[1].category").value("DATABASE"));
     }
 
     @Test
