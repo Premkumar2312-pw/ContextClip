@@ -18,3 +18,4 @@ public class ClipboardRequest {
         this.content = content;
     }
 }
+

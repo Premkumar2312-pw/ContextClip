@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -31,24 +32,24 @@ class ClipboardControllerTest {
     }
 
     @Test
-    void testPostValidClipboardContentReturns201AndSequentialId() throws Exception {
+    void testPostValidClipboardContentReturns201AndGeneratedId() throws Exception {
         mockMvc.perform(post("/api/clipboard")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"docker compose up --build\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.id").value(notNullValue()))
                 .andExpect(jsonPath("$.status").value("RECEIVED"));
 
         mockMvc.perform(post("/api/clipboard")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"SELECT * FROM employees;\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(2))
+                .andExpect(jsonPath("$.id").value(notNullValue()))
                 .andExpect(jsonPath("$.status").value("RECEIVED"));
     }
 
     @Test
-    void testGetClipboardReturnsStoredEntries() throws Exception {
+    void testGetClipboardReturnsPersistedEntriesWithCapturedAt() throws Exception {
         mockMvc.perform(post("/api/clipboard")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"First item\"}"))
@@ -62,10 +63,12 @@ class ClipboardControllerTest {
         mockMvc.perform(get("/api/clipboard"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].id").value(notNullValue()))
                 .andExpect(jsonPath("$[0].content").value("First item"))
-                .andExpect(jsonPath("$[1].id").value(2))
-                .andExpect(jsonPath("$[1].content").value("Second item"));
+                .andExpect(jsonPath("$[0].capturedAt").value(notNullValue()))
+                .andExpect(jsonPath("$[1].id").value(notNullValue()))
+                .andExpect(jsonPath("$[1].content").value("Second item"))
+                .andExpect(jsonPath("$[1].capturedAt").value(notNullValue()));
     }
 
     @Test
