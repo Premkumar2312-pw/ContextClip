@@ -1,0 +1,51 @@
+# ContextClip AI Service — .dockerignore
+# The build only needs: requirements.txt + app/
+
+# Version control
+.git
+.gitignore
+
+# Virtual environments (dependencies are installed fresh inside image)
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Test files (not needed at runtime)
+tests/
+
+# Environment and secrets
+.env
+.env.*
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Documentation
+README.md
+docs/
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Git keep files
+.gitkeep

@@ -1,0 +1,47 @@
+# ContextClip Frontend — .dockerignore
+# The Node builder stage only needs: package.json, package-lock.json,
+# src/, public/, tsconfig*.json, vite.config.ts, index.html
+
+# Version control
+.git
+.gitignore
+
+# Node modules (re-installed inside Docker via npm ci)
+node_modules/
+
+# Previous production builds (rebuilt inside Docker)
+dist/
+
+# Environment and secrets
+.env
+.env.*
+*.env
+
+# Test artifacts
+coverage/
+*.test.ts
+*.spec.ts
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Documentation
+README.md
+docs/
+
+# Docker files (not needed inside the build context)
+Dockerfile
+.dockerignore
+# Note: nginx.conf is intentionally NOT excluded — it is copied into the
+# runtime image stage by the Dockerfile.

@@ -1,0 +1,48 @@
+# ContextClip Backend — .dockerignore
+# Excludes everything not needed for the Docker build.
+# The multi-stage builder only needs: pom.xml + src/
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Build output (rebuilt inside Docker)
+target/
+
+# Environment and secrets (never bake these into images)
+.env
+.env.*
+*.env
+
+# IDE project files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.classpath
+*.project
+.settings/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Maven wrapper (not used in Dockerfile; Docker calls mvn directly)
+# Uncomment if you add mvnw to the image:
+# !mvnw
+# !.mvn/
+
+# Documentation
+README.md
+docs/
+
+# Docker files themselves (not needed inside the build context)
+Dockerfile
+.dockerignore
