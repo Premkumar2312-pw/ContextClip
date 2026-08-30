@@ -22,3 +22,4 @@ export interface AnalyticsData {
   byCategory: AnalyticsCountItem[];
   activity: AnalyticsActivityItem[];
 }
+

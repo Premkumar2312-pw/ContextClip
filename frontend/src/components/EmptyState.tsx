@@ -20,3 +20,4 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onRefresh }) => {
     </div>
   );
 };
+

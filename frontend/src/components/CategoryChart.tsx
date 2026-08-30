@@ -32,3 +32,4 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ data }) => {
     </div>
   );
 };
+

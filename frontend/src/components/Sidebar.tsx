@@ -7,7 +7,14 @@ import {
   Layers,
 } from 'lucide-react';
 
-export const Sidebar: React.FC = () => {
+export type NavTab = 'dashboard' | 'clipboard' | 'search' | 'analytics';
+
+interface SidebarProps {
+  activeTab: NavTab;
+  onSelectTab: (tab: NavTab) => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
   return (
     <aside className="sidebar" aria-label="Main Navigation">
       <div className="sidebar-header">
@@ -18,38 +25,40 @@ export const Sidebar: React.FC = () => {
 
       <nav className="sidebar-nav">
         <button
-          className="nav-item disabled"
-          title="Dashboard view coming soon"
-          disabled
+          className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => onSelectTab('dashboard')}
+          aria-current={activeTab === 'dashboard' ? 'page' : undefined}
+          aria-label="Dashboard navigation"
         >
           <LayoutDashboard size={16} />
           <span>Dashboard</span>
-          <span className="nav-item-badge">Soon</span>
         </button>
 
         <button
-          className="nav-item disabled"
-          title="Clipboard history view coming soon"
-          disabled
+          className={`nav-item ${activeTab === 'clipboard' ? 'active' : ''}`}
+          onClick={() => onSelectTab('clipboard')}
+          aria-current={activeTab === 'clipboard' ? 'page' : undefined}
+          aria-label="Clipboard navigation"
         >
           <Clipboard size={16} />
           <span>Clipboard</span>
-          <span className="nav-item-badge">Soon</span>
         </button>
 
         <button
-          className="nav-item disabled"
-          title="Search view coming soon"
-          disabled
+          className={`nav-item ${activeTab === 'search' ? 'active' : ''}`}
+          onClick={() => onSelectTab('search')}
+          aria-current={activeTab === 'search' ? 'page' : undefined}
+          aria-label="Search navigation"
         >
           <Search size={16} />
           <span>Search</span>
-          <span className="nav-item-badge">Soon</span>
         </button>
 
         <button
-          className="nav-item active"
-          aria-current="page"
+          className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
+          onClick={() => onSelectTab('analytics')}
+          aria-current={activeTab === 'analytics' ? 'page' : undefined}
+          aria-label="Analytics navigation"
         >
           <BarChart2 size={16} />
           <span>Analytics</span>

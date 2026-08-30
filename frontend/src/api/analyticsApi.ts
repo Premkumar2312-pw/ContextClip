@@ -64,3 +64,4 @@ export async function fetchAllAnalytics(): Promise<AnalyticsData> {
     activity,
   };
 }
+

@@ -60,3 +60,4 @@ export const TechnologyChart: React.FC<TechnologyChartProps> = ({ data }) => {
     </div>
   );
 };
+

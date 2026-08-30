@@ -75,3 +75,4 @@ export const TypeChart: React.FC<TypeChartProps> = ({ data }) => {
     </div>
   );
 };
+

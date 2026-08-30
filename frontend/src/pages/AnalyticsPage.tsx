@@ -10,7 +10,7 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
 
-export const DashboardPage: React.FC = () => {
+export const AnalyticsPage: React.FC = () => {
   const { data, loading, error, lastUpdated, refresh } = useAnalytics();
 
   const isEmpty =
@@ -23,18 +23,12 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="main-wrapper">
-      <Header
-        lastUpdated={lastUpdated}
-        loading={loading}
-        onRefresh={refresh}
-      />
+      <Header lastUpdated={lastUpdated} loading={loading} onRefresh={refresh} />
 
       <main className="content-container">
         {loading && !data && <LoadingSkeleton />}
 
-        {error && !data && (
-          <ErrorState message={error} onRetry={refresh} />
-        )}
+        {error && !data && <ErrorState message={error} onRetry={refresh} />}
 
         {data && isEmpty && <EmptyState onRefresh={refresh} />}
 

@@ -22,3 +22,4 @@ export const LoadingSkeleton: React.FC = () => {
     </div>
   );
 };
+

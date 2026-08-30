@@ -80,3 +80,4 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ data }) => {
     </div>
   );
 };
+
