@@ -12,6 +12,7 @@ public class ClipboardAgentApplication {
 
     public static void main(String[] args) {
         printBanner();
+        warnIfCredentialsMissing();
 
         ClipboardMonitor monitor = new ClipboardMonitor(ClipboardAgentApplication::handleClipboardContent);
 
@@ -38,6 +39,18 @@ public class ClipboardAgentApplication {
             e.printStackTrace();
         } finally {
             monitor.stop();
+        }
+    }
+
+    private static void warnIfCredentialsMissing() {
+        String username = System.getenv("AGENT_USERNAME");
+        String password = System.getenv("AGENT_PASSWORD");
+        if (username == null || username.isBlank() || password == null || password.isBlank()) {
+            System.err.println("=================================");
+            System.err.println("WARNING: AGENT_USERNAME or AGENT_PASSWORD is not set.");
+            System.err.println("Clipboard data will NOT be sent to a secured backend.");
+            System.err.println("Set both env vars and restart the agent to enable capture.");
+            System.err.println("=================================");
         }
     }
 

@@ -2,6 +2,7 @@ package com.contextclip;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -299,6 +300,82 @@ class AuthTest {
 
         mockMvc.perform(get("/api/analytics/overview")
                         .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 8C — Agent role tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    void testAgentLoginReturnsJwtWithAgentRole() throws Exception {
+        userRepository.save(new User("contextclip-agent", passwordEncoder.encode("AgentPass123!"), "AGENT"));
+
+        String requestJson = """
+            {
+                "username": "contextclip-agent",
+                "password": "AgentPass123!"
+            }
+            """;
+
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString())
+                .andExpect(jsonPath("$.username").value("contextclip-agent"))
+                .andExpect(jsonPath("$.role").value("AGENT"))
+                .andReturn();
+
+        String responseContent = result.getResponse().getContentAsString();
+        JsonNode jsonNode = objectMapper.readTree(responseContent);
+        String token = jsonNode.get("token").asText();
+
+        assertNotNull(token);
+        assertTrue(jwtService.validateToken(token));
+        assertEquals("contextclip-agent", jwtService.extractUsername(token));
+        assertEquals("AGENT", jwtService.extractRole(token));
+    }
+
+    @Test
+    void testAgentJwtAllowsPostToClipboardEndpoint() throws Exception {
+        userRepository.save(new User("contextclip-agent", passwordEncoder.encode("AgentPass123!"), "AGENT"));
+        String agentToken = jwtService.generateToken("contextclip-agent", "AGENT");
+
+        String clipboardJson = """
+            {"content": "kubectl get pods"}
+            """;
+
+        mockMvc.perform(post("/api/clipboard")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(clipboardJson)
+                        .header("Authorization", "Bearer " + agentToken))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void testAgentAndUserJwtsAreIndependent() throws Exception {
+        userRepository.save(new User("prem", passwordEncoder.encode("UserPass123!"), "USER"));
+        userRepository.save(new User("contextclip-agent", passwordEncoder.encode("AgentPass123!"), "AGENT"));
+
+        String userToken  = jwtService.generateToken("prem", "USER");
+        String agentToken = jwtService.generateToken("contextclip-agent", "AGENT");
+
+        // Both tokens are valid
+        assertTrue(jwtService.validateToken(userToken));
+        assertTrue(jwtService.validateToken(agentToken));
+
+        // Roles are correctly distinct
+        assertEquals("USER",  jwtService.extractRole(userToken));
+        assertEquals("AGENT", jwtService.extractRole(agentToken));
+
+        // Both can access the clipboard endpoint
+        mockMvc.perform(get("/api/clipboard")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/clipboard")
+                        .header("Authorization", "Bearer " + agentToken))
                 .andExpect(status().isOk());
     }
 }
