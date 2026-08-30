@@ -4,11 +4,12 @@ import {
   AnalyticsData,
   AnalyticsOverview,
 } from '../types/analytics';
+import { authFetch } from './apiClient';
 
 const BASE_URL = '/api/analytics';
 
 export async function fetchOverview(): Promise<AnalyticsOverview> {
-  const response = await fetch(`${BASE_URL}/overview`);
+  const response = await authFetch(`${BASE_URL}/overview`);
   if (!response.ok) {
     throw new Error(`Failed to fetch overview: ${response.status} ${response.statusText}`);
   }
@@ -16,7 +17,7 @@ export async function fetchOverview(): Promise<AnalyticsOverview> {
 }
 
 export async function fetchByType(): Promise<AnalyticsCountItem[]> {
-  const response = await fetch(`${BASE_URL}/by-type`);
+  const response = await authFetch(`${BASE_URL}/by-type`);
   if (!response.ok) {
     throw new Error(`Failed to fetch type analytics: ${response.status} ${response.statusText}`);
   }
@@ -24,7 +25,7 @@ export async function fetchByType(): Promise<AnalyticsCountItem[]> {
 }
 
 export async function fetchByTechnology(): Promise<AnalyticsCountItem[]> {
-  const response = await fetch(`${BASE_URL}/by-technology`);
+  const response = await authFetch(`${BASE_URL}/by-technology`);
   if (!response.ok) {
     throw new Error(`Failed to fetch technology analytics: ${response.status} ${response.statusText}`);
   }
@@ -32,7 +33,7 @@ export async function fetchByTechnology(): Promise<AnalyticsCountItem[]> {
 }
 
 export async function fetchByCategory(): Promise<AnalyticsCountItem[]> {
-  const response = await fetch(`${BASE_URL}/by-category`);
+  const response = await authFetch(`${BASE_URL}/by-category`);
   if (!response.ok) {
     throw new Error(`Failed to fetch category analytics: ${response.status} ${response.statusText}`);
   }
@@ -40,7 +41,7 @@ export async function fetchByCategory(): Promise<AnalyticsCountItem[]> {
 }
 
 export async function fetchActivity(): Promise<AnalyticsActivityItem[]> {
-  const response = await fetch(`${BASE_URL}/activity`);
+  const response = await authFetch(`${BASE_URL}/activity`);
   if (!response.ok) {
     throw new Error(`Failed to fetch activity analytics: ${response.status} ${response.statusText}`);
   }
@@ -64,4 +65,3 @@ export async function fetchAllAnalytics(): Promise<AnalyticsData> {
     activity,
   };
 }
-

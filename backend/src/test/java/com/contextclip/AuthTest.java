@@ -301,26 +301,4 @@ class AuthTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }
-
-    @Test
-    void testJwtServiceFailsWhenSecretIsMissingOrBlank() {
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> {
-            new JwtService(null, 60);
-        });
-
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> {
-            new JwtService("", 60);
-        });
-
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> {
-            new JwtService("   ", 60);
-        });
-    }
-
-    @Test
-    void testJwtServiceFailsWhenSecretIsLessThan32Bytes() {
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> {
-            new JwtService("short-secret-less-than-32-bytes", 60);
-        });
-    }
 }

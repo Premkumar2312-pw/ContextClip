@@ -5,7 +5,10 @@ import {
   Search,
   LayoutDashboard,
   Layers,
+  LogOut,
+  User as UserIcon,
 } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 
 export type NavTab = 'dashboard' | 'clipboard' | 'search' | 'analytics';
 
@@ -15,6 +18,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
+  const { user, logout } = useAuth();
+
   return (
     <aside className="sidebar" aria-label="Main Navigation">
       <div className="sidebar-header">
@@ -66,7 +71,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
       </nav>
 
       <div className="sidebar-footer">
-        <p>PostgreSQL Connected</p>
+        {user && (
+          <div className="user-profile-section" data-testid="user-profile">
+            <div className="user-info">
+              <UserIcon size={14} className="user-avatar-icon" />
+              <span className="user-name" title={user.username}>
+                {user.username}
+              </span>
+            </div>
+            <button
+              className="btn-logout"
+              onClick={logout}
+              aria-label="Log out"
+              data-testid="logout-button"
+              title="Log out"
+            >
+              <LogOut size={14} />
+              <span>Log out</span>
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

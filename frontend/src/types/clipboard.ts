@@ -17,6 +17,15 @@ export interface ClipboardSummaryResponse {
   summary: string;
 }
 
+export interface ClipboardAskRequest {
+  question: string;
+}
+
+export interface ClipboardAskResponse {
+  answer: string;
+  sources?: number[];
+}
+
 export interface SearchParams {
   q?: string;
   type?: string;

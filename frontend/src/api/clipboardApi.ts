@@ -1,9 +1,12 @@
 import {
+  ClipboardAskRequest,
+  ClipboardAskResponse,
   ClipboardEntry,
   ClipboardExplanationResponse,
   ClipboardSummaryResponse,
   SearchParams,
 } from '../types/clipboard';
+import { authFetch } from './apiClient';
 
 const BASE_URL = '/api/clipboard';
 
@@ -73,7 +76,7 @@ async function parseAiError(response: Response): Promise<string> {
 }
 
 export async function getClipboardEntries(): Promise<ClipboardEntry[]> {
-  const response = await fetch(BASE_URL);
+  const response = await authFetch(BASE_URL);
   if (!response.ok) {
     throw new Error(`Failed to fetch clipboard entries: ${response.status} ${response.statusText}`);
   }
@@ -97,7 +100,7 @@ export async function searchClipboard(params: SearchParams): Promise<ClipboardEn
   }
 
   const url = `${BASE_URL}/search?${query.toString()}`;
-  const response = await fetch(url);
+  const response = await authFetch(url);
   if (!response.ok) {
     throw new Error(`Unable to search clipboard history: ${response.status} ${response.statusText}`);
   }
@@ -106,15 +109,20 @@ export async function searchClipboard(params: SearchParams): Promise<ClipboardEn
 
 export async function explainClipboardEntry(id: number): Promise<ClipboardExplanationResponse> {
   try {
-    const response = await fetch(`${BASE_URL}/${id}/explain`);
+    const response = await authFetch(`${BASE_URL}/${id}/explain`);
     if (!response.ok) {
       const userMessage = await parseAiError(response);
       throw new Error(userMessage);
     }
     return await response.json();
   } catch (err: unknown) {
-    if (err instanceof Error && err.message && !err.message.toLowerCase().includes('failed to fetch')) {
-      throw err;
+    if (err instanceof Error && err.message) {
+      if (err.message.includes('session has expired')) {
+        throw err;
+      }
+      if (!err.message.toLowerCase().includes('failed to fetch')) {
+        throw err;
+      }
     }
     throw new Error('AI service is unavailable. Make sure the AI service is running and try again.');
   }
@@ -122,15 +130,48 @@ export async function explainClipboardEntry(id: number): Promise<ClipboardExplan
 
 export async function summarizeClipboardEntry(id: number): Promise<ClipboardSummaryResponse> {
   try {
-    const response = await fetch(`${BASE_URL}/${id}/summarize`);
+    const response = await authFetch(`${BASE_URL}/${id}/summarize`);
     if (!response.ok) {
       const userMessage = await parseAiError(response);
       throw new Error(userMessage);
     }
     return await response.json();
   } catch (err: unknown) {
-    if (err instanceof Error && err.message && !err.message.toLowerCase().includes('failed to fetch')) {
-      throw err;
+    if (err instanceof Error && err.message) {
+      if (err.message.includes('session has expired')) {
+        throw err;
+      }
+      if (!err.message.toLowerCase().includes('failed to fetch')) {
+        throw err;
+      }
+    }
+    throw new Error('AI service is unavailable. Make sure the AI service is running and try again.');
+  }
+}
+
+export async function askClipboard(request: ClipboardAskRequest): Promise<ClipboardAskResponse> {
+  try {
+    const response = await authFetch(`${BASE_URL}/ask`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const userMessage = await parseAiError(response);
+      throw new Error(userMessage);
+    }
+    return await response.json();
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message) {
+      if (err.message.includes('session has expired')) {
+        throw err;
+      }
+      if (!err.message.toLowerCase().includes('failed to fetch')) {
+        throw err;
+      }
     }
     throw new Error('AI service is unavailable. Make sure the AI service is running and try again.');
   }
