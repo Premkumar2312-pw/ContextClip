@@ -38,8 +38,12 @@ FROM eclipse-temurin:25-jre-noble AS runtime
 LABEL org.opencontainers.image.title="contextclip-backend"
 LABEL org.opencontainers.image.description="ContextClip Spring Boot Backend Service"
 
-# Create a non-root system user for security best practice
-RUN groupadd --system contextclip \
+# Install curl (needed for Docker healthcheck: curl -sf http://localhost:8080/api/health)
+# then create a non-root system user for security best practice
+RUN apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system contextclip \
  && useradd  --system --gid contextclip --no-create-home contextclip
 
 WORKDIR /app

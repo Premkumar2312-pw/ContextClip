@@ -1,17 +1,163 @@
+# =============================================================================
+# ContextClip — Complete Docker Compose Stack
+# Phases 9B + 9C
+#
+# Services:
+#   postgres    — PostgreSQL 17 (persistent data volume)
+#   ai-service  — FastAPI / Google Gemini AI service
+#   backend     — Spring Boot 3 / JRE 25
+#   frontend    — React/Vite SPA served by nginx (reverse-proxies /api/*)
+#
+# NOT containerized (requires Windows clipboard access):
+#   desktop-agent — native Windows JVM process
+#
+# Usage:
+#   docker compose up -d
+#   docker compose down          # keeps postgres_data volume
+#   docker compose down -v       # DESTROYS postgres_data — never use in prod
+#
+# All secrets come from the root .env file (never committed).
+# =============================================================================
+
 services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 17
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:17-alpine
     container_name: contextclip-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-contextclip}
-      POSTGRES_USER: ${POSTGRES_USER:-contextclip_user}
+      POSTGRES_DB:       ${POSTGRES_DB:-contextclip}
+      POSTGRES_USER:     ${POSTGRES_USER:-contextclip_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
+      # Exposed on host so the native Desktop Agent and local dev tools can
+      # reach the database directly if needed.
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-contextclip_user} -d ${POSTGRES_DB:-contextclip}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - contextclip-net
 
+  # ---------------------------------------------------------------------------
+  # AI Service — FastAPI / Google Gemini
+  # ---------------------------------------------------------------------------
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    image: contextclip-ai-service:latest
+    container_name: contextclip-ai-service
+    restart: unless-stopped
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL:   ${GEMINI_MODEL:-gemini-2.0-flash}
+    # ai-service does NOT need a host port for external access —
+    # the backend reaches it via internal DNS (ai-service:8000).
+    # Exposed here for local debugging / health checks from host.
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ai/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - contextclip-net
+
+  # ---------------------------------------------------------------------------
+  # Backend — Spring Boot 3 / JRE 25
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: contextclip-backend:latest
+    container_name: contextclip-backend
+    restart: unless-stopped
+    environment:
+      # Database — uses the Compose service name 'postgres' for DNS
+      DB_HOST:           postgres
+      DB_PORT:           5432
+      POSTGRES_DB:       ${POSTGRES_DB:-contextclip}
+      POSTGRES_USER:     ${POSTGRES_USER:-contextclip_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # JWT — no defaults; container will refuse to start without these
+      JWT_SECRET:               ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES:   ${JWT_EXPIRATION_MINUTES:-60}
+      # AI service — uses the Compose service name 'ai-service' for DNS
+      AI_SERVICE_URL:            http://ai-service:8000
+      AI_SERVICE_TIMEOUT_SECONDS: ${AI_SERVICE_TIMEOUT_SECONDS:-60}
+      # Desktop Agent account (seeded by AgentUserInitializer on startup)
+      AGENT_USERNAME: ${AGENT_USERNAME}
+      AGENT_PASSWORD: ${AGENT_PASSWORD}
+    ports:
+      # Exposed on host so:
+      #   - Browser → frontend nginx → /api/* → backend (internal)
+      #   - Native Desktop Agent → localhost:8080 (external → container)
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+    networks:
+      - contextclip-net
+
+  # ---------------------------------------------------------------------------
+  # Frontend — React/Vite SPA served by nginx
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: contextclip-frontend:latest
+    container_name: contextclip-frontend
+    restart: unless-stopped
+    ports:
+      # nginx listens on 80 inside the container, mapped to 3000 on host.
+      # This preserves the familiar localhost:3000 dev URL.
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # nginx:alpine has no curl/wget by default; use a native shell TCP test.
+      # Connects to port 80 and reads the response; if nginx is up it succeeds.
+      test: ["CMD-SHELL", "sh -c 'printf \"GET / HTTP/1.0\\r\\n\\r\\n\" | nc -w2 localhost 80 | grep -q \"200\\|301\\|302\\|304\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - contextclip-net
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  contextclip-net:
+    name: contextclip-network
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
   postgres_data:
     name: contextclip_postgres_data
