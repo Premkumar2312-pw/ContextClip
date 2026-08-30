@@ -6,11 +6,12 @@ import {
   LayoutDashboard,
   Layers,
   LogOut,
+  MessageSquare,
   User as UserIcon,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
-export type NavTab = 'dashboard' | 'clipboard' | 'search' | 'analytics';
+export type NavTab = 'dashboard' | 'clipboard' | 'ask' | 'search' | 'analytics';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -50,6 +51,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
         </button>
 
         <button
+          className={`nav-item ${activeTab === 'ask' ? 'active' : ''}`}
+          onClick={() => onSelectTab('ask')}
+          aria-current={activeTab === 'ask' ? 'page' : undefined}
+          aria-label="Ask navigation"
+        >
+          <MessageSquare size={16} />
+          <span>Ask My Clipboard</span>
+        </button>
+
+        <button
           className={`nav-item ${activeTab === 'search' ? 'active' : ''}`}
           onClick={() => onSelectTab('search')}
           aria-current={activeTab === 'search' ? 'page' : undefined}
@@ -58,6 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
           <Search size={16} />
           <span>Search</span>
         </button>
+
 
         <button
           className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}

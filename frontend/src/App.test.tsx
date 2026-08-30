@@ -362,4 +362,284 @@ describe('ContextClip Authentication and Application UI Tests', () => {
       expect(screen.getByText('Clipboard History')).toBeInTheDocument();
     });
   });
+
+  describe('3. Ask My Clipboard Feature', () => {
+    beforeEach(() => {
+      authStorage.setAuth('valid-token-ask', { username: 'askuser', role: 'USER' });
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue(mockClipboardEntries);
+    });
+
+    it('21. Ask My Clipboard navigation item exists in sidebar', () => {
+      render(<App />);
+      expect(
+        screen.getByRole('button', { name: /ask navigation/i })
+      ).toBeInTheDocument();
+    });
+
+    it('22. Ask My Clipboard page renders title and question input', async () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Ask My Clipboard' })).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('ask-question-input')).toBeInTheDocument();
+      expect(screen.getByTestId('ask-submit-btn')).toBeInTheDocument();
+    });
+
+    it('23. Empty question shows validation error', async () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-submit-btn')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      expect(screen.getByTestId('ask-validation-error')).toBeInTheDocument();
+      expect(screen.getByText('Please enter a question.')).toBeInTheDocument();
+    });
+
+    it('24. Whitespace-only question shows validation error', async () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), { target: { value: '   ' } });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      expect(screen.getByTestId('ask-validation-error')).toBeInTheDocument();
+      expect(screen.getByText('Please enter a question.')).toBeInTheDocument();
+    });
+
+    it('25. Question exceeding 2000 characters shows validation error', async () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      const longQ = 'a'.repeat(2001);
+      fireEvent.change(screen.getByTestId('ask-question-input'), { target: { value: longQ } });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      expect(screen.getByTestId('ask-validation-error')).toBeInTheDocument();
+      expect(screen.getByText(/2000 characters or fewer/i)).toBeInTheDocument();
+    });
+
+    it('26. Successful API request renders answer through MarkdownView', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard').mockResolvedValue({
+        answer: '**You have 2 Docker commands.**',
+        sources: [11, 9],
+      });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'What Docker commands do I have?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ask-answer-panel')).toBeInTheDocument();
+      });
+
+      // MarkdownView renders **text** as <strong>
+      expect(screen.getByText('You have 2 Docker commands.')).toBeInTheDocument();
+    });
+
+    it('27. askClipboard is called with JWT Authorization header (via authFetch)', async () => {
+      const askSpy = vi.spyOn(clipboardApi, 'askClipboard').mockResolvedValue({
+        answer: 'Docker commands: docker compose up --build',
+        sources: [11],
+      });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'What Docker commands do I have?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(askSpy).toHaveBeenCalledWith({ question: 'What Docker commands do I have?' });
+      });
+    });
+
+    it('28. Source IDs render after successful response', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard').mockResolvedValue({
+        answer: 'Here are your Docker commands.',
+        sources: [11, 9],
+      });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'What Docker commands?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ask-sources-panel')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('ask-source-11')).toBeInTheDocument();
+      expect(screen.getByTestId('ask-source-9')).toBeInTheDocument();
+    });
+
+    it('29. Loading state disables the Ask button while request is in flight', async () => {
+      let resolveAsk!: (val: { answer: string; sources: number[] }) => void;
+      vi.spyOn(clipboardApi, 'askClipboard').mockReturnValue(
+        new Promise((res) => { resolveAsk = res; })
+      );
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'What is in my clipboard?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      expect(screen.getByTestId('ask-submit-btn')).toBeDisabled();
+      expect(screen.getByText(/thinking/i)).toBeInTheDocument();
+
+      resolveAsk({ answer: 'Some answer', sources: [] });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ask-submit-btn')).not.toBeDisabled();
+      });
+    });
+
+    it('30. Generic error state shows error panel', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard').mockRejectedValue(
+        new Error('Something went wrong.')
+      );
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'Test question?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ask-error-panel')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('ask-error-message')).toBeInTheDocument();
+    });
+
+    it('31. AI unavailable message surfaces correctly', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard').mockRejectedValue(
+        new Error('AI service is unavailable. Make sure the AI service is running and try again.')
+      );
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'What is in my clipboard?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/AI service is unavailable/i)).toBeInTheDocument();
+      });
+    });
+
+    it('32. Rate-limit 429 message surfaces correctly', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard').mockRejectedValue(
+        new Error('AI service rate limit reached. Please try again later.')
+      );
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'What is in my clipboard?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/rate limit/i)).toBeInTheDocument();
+      });
+    });
+
+    it('33. 401 event on Ask page clears session and returns to login', async () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { name: 'Ask My Clipboard' })).toBeInTheDocument()
+      );
+
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('login-card')).toBeInTheDocument();
+      });
+      expect(authStorage.getToken()).toBeNull();
+    });
+
+    it('34. Empty clipboard history shows empty-state panel', async () => {
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue([]);
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ask-empty-state')).toBeInTheDocument();
+      });
+      expect(screen.getByText(/No clipboard history available yet/i)).toBeInTheDocument();
+    });
+
+    it('35. Asking a second question replaces the previous result', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard')
+        .mockResolvedValueOnce({ answer: 'First answer', sources: [11] })
+        .mockResolvedValueOnce({ answer: 'Second answer', sources: [9] });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      // First question
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'First question?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByText('First answer')).toBeInTheDocument();
+      });
+
+      // Second question — overwrite previous result
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'Second question?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Second answer')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('First answer')).not.toBeInTheDocument();
+    });
+  });
 });

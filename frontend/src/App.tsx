@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { DashboardOverviewPage } from './pages/DashboardOverviewPage';
 import { ClipboardPage } from './pages/ClipboardPage';
+import { AskClipboardPage } from './pages/AskClipboardPage';
 import { SearchPage } from './pages/SearchPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { LoginPage } from './pages/LoginPage';
@@ -50,6 +51,9 @@ const MainAppContent: React.FC = () => {
         <DashboardOverviewPage onNavigateToClipboard={() => setActiveTab('clipboard')} />
       )}
       {activeTab === 'clipboard' && <ClipboardPage />}
+      {activeTab === 'ask' && (
+        <AskClipboardPage onNavigateToClipboard={() => setActiveTab('clipboard')} />
+      )}
       {activeTab === 'search' && <SearchPage />}
       {activeTab === 'analytics' && <AnalyticsPage />}
     </div>
