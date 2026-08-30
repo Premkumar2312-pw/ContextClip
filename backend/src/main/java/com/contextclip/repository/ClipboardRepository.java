@@ -1,5 +1,7 @@
 package com.contextclip.repository;
 
+import com.contextclip.dto.AnalyticsActivityResponse;
+import com.contextclip.dto.AnalyticsCountResponse;
 import com.contextclip.model.ClipboardEntry;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -25,4 +27,36 @@ public interface ClipboardRepository extends JpaRepository<ClipboardEntry, Long>
             @Param("technology") String technology,
             @Param("category") String category
     );
+
+    @Query("""
+        SELECT new com.contextclip.dto.AnalyticsCountResponse(c.type, COUNT(c))
+        FROM ClipboardEntry c
+        GROUP BY c.type
+        ORDER BY COUNT(c) DESC
+    """)
+    List<AnalyticsCountResponse> countGroupedByType();
+
+    @Query("""
+        SELECT new com.contextclip.dto.AnalyticsCountResponse(c.technology, COUNT(c))
+        FROM ClipboardEntry c
+        GROUP BY c.technology
+        ORDER BY COUNT(c) DESC
+    """)
+    List<AnalyticsCountResponse> countGroupedByTechnology();
+
+    @Query("""
+        SELECT new com.contextclip.dto.AnalyticsCountResponse(c.category, COUNT(c))
+        FROM ClipboardEntry c
+        GROUP BY c.category
+        ORDER BY COUNT(c) DESC
+    """)
+    List<AnalyticsCountResponse> countGroupedByCategory();
+
+    @Query("""
+        SELECT new com.contextclip.dto.AnalyticsActivityResponse(CAST(c.capturedAt as LocalDate), COUNT(c))
+        FROM ClipboardEntry c
+        GROUP BY CAST(c.capturedAt as LocalDate)
+        ORDER BY CAST(c.capturedAt as LocalDate) ASC
+    """)
+    List<AnalyticsActivityResponse> countDailyActivity();
 }
