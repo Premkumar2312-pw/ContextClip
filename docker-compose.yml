@@ -137,9 +137,10 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      # nginx:alpine has no curl/wget by default; use a native shell TCP test.
-      # Connects to port 80 and reads the response; if nginx is up it succeeds.
-      test: ["CMD-SHELL", "sh -c 'printf \"GET / HTTP/1.0\\r\\n\\r\\n\" | nc -w2 localhost 80 | grep -q \"200\\|301\\|302\\|304\"'"]
+      # curl is available in nginx:alpine and reliably probes HTTP.
+      # The nc-based probe failed because BusyBox nc does not forward stdin
+      # correctly when piped, producing empty output even when nginx is up.
+      test: ["CMD-SHELL", "curl -sf http://localhost/ -o /dev/null || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
