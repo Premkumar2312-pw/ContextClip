@@ -1,9 +1,10 @@
-import pytest
+﻿import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
+from groq import RateLimitError, AuthenticationError, APIConnectionError, BadRequestError
 
-from app.main import app, gemini_service
-from app.services.gemini_service import GeminiService
+from app.main import app, groq_service
+from app.services.groq_service import GroqService
 
 client = TestClient(app)
 
@@ -11,10 +12,10 @@ client = TestClient(app)
 def test_health_endpoint():
     response = client.get("/api/ai/health")
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "UP",
-        "service": "ContextClip AI Service"
-    }
+    data = response.json()
+    assert data["status"] == "UP"
+    assert data["service"] == "ContextClip AI Service"
+    assert "configured" in data
 
 
 def test_generate_missing_prompt_body():
@@ -42,7 +43,7 @@ def test_generate_prompt_exceeds_max_length():
 
 
 def test_generate_success_mocked():
-    with patch.object(gemini_service, "generate_response", return_value="A HashMap is a key-value data structure in Java."):
+    with patch.object(groq_service, "generate_response", return_value="A HashMap is a key-value data structure in Java."):
         response = client.post(
             "/api/ai/generate",
             json={"prompt": "Explain what a Java HashMap is."}
@@ -54,45 +55,65 @@ def test_generate_success_mocked():
 
 
 def test_generate_missing_api_key_handled():
-    with patch.object(gemini_service, "generate_response", side_effect=ValueError("GEMINI_API_KEY environment variable is not set")):
+    with patch.object(groq_service, "generate_response", side_effect=ValueError("GROQ_API_KEY environment variable is not set")):
         response = client.post(
             "/api/ai/generate",
             json={"prompt": "Explain what a Java HashMap is."}
         )
         assert response.status_code == 500
-        assert "GEMINI_API_KEY" in response.json()["detail"]
+        assert "GROQ_API_KEY" in response.json()["detail"]
 
 
-def test_generate_gemini_api_error_handled():
-    with patch.object(gemini_service, "generate_response", side_effect=RuntimeError("Gemini API error: Rate limit reached")):
+def test_generate_rate_limit_handled():
+    # Construct a mock RateLimitError
+    mock_response = MagicMock()
+    mock_response.status_code = 429
+    error = RateLimitError("Rate limit exceeded", response=mock_response, body=None)
+    with patch.object(groq_service, "generate_response", side_effect=error):
         response = client.post(
             "/api/ai/generate",
             json={"prompt": "Explain what a Java HashMap is."}
         )
-        assert response.status_code == 502
-        assert "Gemini API error" in response.json()["detail"]
+        assert response.status_code == 429
+        assert "rate limit reached" in response.json()["detail"].lower()
 
 
-def test_gemini_service_missing_key_unit():
-    service = GeminiService(api_key="")
-    with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+def test_generate_authentication_error_handled():
+    mock_response = MagicMock()
+    mock_response.status_code = 401
+    error = AuthenticationError("Invalid API key", response=mock_response, body=None)
+    with patch.object(groq_service, "generate_response", side_effect=error):
+        response = client.post(
+            "/api/ai/generate",
+            json={"prompt": "Explain what a Java HashMap is."}
+        )
+        assert response.status_code == 401
+        assert "authentication failed" in response.json()["detail"].lower()
+
+
+def test_groq_service_missing_key_unit():
+    service = GroqService(api_key="")
+    with pytest.raises(ValueError, match="GROQ_API_KEY"):
         service.generate_response("Test prompt")
 
 
-def test_gemini_service_mocked_interactions_unit():
-    service = GeminiService(api_key="mock-gemini-key", model="gemini-3.6-flash")
+def test_groq_service_mocked_completion_unit():
+    service = GroqService(api_key="mock-groq-key", model="llama-3.3-70b-versatile")
 
-    mock_interaction = MagicMock()
-    mock_interaction.output_text = "Mocked explanation from Interactions API"
+    mock_choice = MagicMock()
+    mock_choice.message.content = "Mocked explanation from Groq"
+    mock_completion = MagicMock()
+    mock_completion.choices = [mock_choice]
 
-    with patch("app.services.gemini_service.genai.Client") as mock_client_cls:
+    with patch("app.services.groq_service.Groq") as mock_groq_cls:
         mock_client = MagicMock()
-        mock_client.interactions.create.return_value = mock_interaction
-        mock_client_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = mock_completion
+        mock_groq_cls.return_value = mock_client
 
         result = service.generate_response("Explain Spring Boot")
-        assert result == "Mocked explanation from Interactions API"
-        mock_client.interactions.create.assert_called_once_with(
-            model="gemini-3.6-flash",
-            input="Explain Spring Boot"
+        assert result == "Mocked explanation from Groq"
+        mock_client.chat.completions.create.assert_called_once_with(
+            messages=[{"role": "user", "content": "Explain Spring Boot"}],
+            model="llama-3.3-70b-versatile",
+            temperature=0.2
         )

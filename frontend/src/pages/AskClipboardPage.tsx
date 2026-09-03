@@ -14,7 +14,7 @@ const EXAMPLE_PROMPTS = [
 ];
 
 interface AskClipboardPageProps {
-  onNavigateToClipboard?: () => void;
+  onNavigateToClipboard?: (entryId?: number) => void;
 }
 
 type AskState = 'idle' | 'loading' | 'success' | 'error';
@@ -125,7 +125,7 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
               questions about your history.
             </p>
             {onNavigateToClipboard && (
-              <button className="btn-secondary" onClick={onNavigateToClipboard}>
+              <button className="btn-secondary" onClick={() => onNavigateToClipboard()}>
                 Go to Clipboard
               </button>
             )}
@@ -273,7 +273,7 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
                           <button
                             key={id}
                             className="ask-source-chip"
-                            onClick={onNavigateToClipboard}
+                            onClick={() => onNavigateToClipboard?.(id)}
                             aria-label={`Source entry ${id}`}
                             data-testid={`ask-source-${id}`}
                           >

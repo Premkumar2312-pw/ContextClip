@@ -70,7 +70,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
           <span>Search</span>
         </button>
 
-
         <button
           className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
           onClick={() => onSelectTab('analytics')}
@@ -107,3 +106,5 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
     </aside>
   );
 };
+
+

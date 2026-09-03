@@ -3,6 +3,7 @@ package com.contextclip.service;
 import com.contextclip.dto.AnalyticsActivityResponse;
 import com.contextclip.dto.AnalyticsCountResponse;
 import com.contextclip.dto.AnalyticsOverviewResponse;
+import com.contextclip.model.User;
 import com.contextclip.repository.ClipboardRepository;
 import org.springframework.stereotype.Service;
 
@@ -18,14 +19,18 @@ public class AnalyticsService {
     }
 
     public AnalyticsOverviewResponse getOverview() {
-        long totalEntries = clipboardRepository.count();
+        return getOverview(null);
+    }
+
+    public AnalyticsOverviewResponse getOverview(User user) {
+        long totalEntries = user == null ? clipboardRepository.count() : clipboardRepository.countByUser(user);
         if (totalEntries == 0) {
             return new AnalyticsOverviewResponse(0, null, null, null);
         }
 
-        List<AnalyticsCountResponse> byType = clipboardRepository.countGroupedByType();
-        List<AnalyticsCountResponse> byTechnology = clipboardRepository.countGroupedByTechnology();
-        List<AnalyticsCountResponse> byCategory = clipboardRepository.countGroupedByCategory();
+        List<AnalyticsCountResponse> byType = user == null ? clipboardRepository.countGroupedByType() : clipboardRepository.countGroupedByType(user);
+        List<AnalyticsCountResponse> byTechnology = user == null ? clipboardRepository.countGroupedByTechnology() : clipboardRepository.countGroupedByTechnology(user);
+        List<AnalyticsCountResponse> byCategory = user == null ? clipboardRepository.countGroupedByCategory() : clipboardRepository.countGroupedByCategory(user);
 
         String mostUsedType = byType.isEmpty() ? null : byType.get(0).name();
         String mostUsedTechnology = byTechnology.isEmpty() ? null : byTechnology.get(0).name();
@@ -35,18 +40,35 @@ public class AnalyticsService {
     }
 
     public List<AnalyticsCountResponse> getByType() {
-        return clipboardRepository.countGroupedByType();
+        return getByType(null);
+    }
+
+    public List<AnalyticsCountResponse> getByType(User user) {
+        return user == null ? clipboardRepository.countGroupedByType() : clipboardRepository.countGroupedByType(user);
     }
 
     public List<AnalyticsCountResponse> getByTechnology() {
-        return clipboardRepository.countGroupedByTechnology();
+        return getByTechnology(null);
+    }
+
+    public List<AnalyticsCountResponse> getByTechnology(User user) {
+        return user == null ? clipboardRepository.countGroupedByTechnology() : clipboardRepository.countGroupedByTechnology(user);
     }
 
     public List<AnalyticsCountResponse> getByCategory() {
-        return clipboardRepository.countGroupedByCategory();
+        return getByCategory(null);
+    }
+
+    public List<AnalyticsCountResponse> getByCategory(User user) {
+        return user == null ? clipboardRepository.countGroupedByCategory() : clipboardRepository.countGroupedByCategory(user);
     }
 
     public List<AnalyticsActivityResponse> getActivity() {
-        return clipboardRepository.countDailyActivity();
+        return getActivity(null);
+    }
+
+    public List<AnalyticsActivityResponse> getActivity(User user) {
+        return user == null ? clipboardRepository.countDailyActivity() : clipboardRepository.countDailyActivity(user);
     }
 }
+

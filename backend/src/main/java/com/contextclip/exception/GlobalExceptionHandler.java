@@ -35,8 +35,41 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AiServiceException.class)
-    public ResponseEntity<String> handleAiServiceException(AiServiceException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ex.getMessage());
+    public ResponseEntity<Map<String, Object>> handleAiServiceException(AiServiceException ex) {
+        int code = ex.getStatusCode();
+        if (code == 429) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
+                    "error", "Too Many Requests",
+                    "message", "AI service rate limit reached. Please try again later.",
+                    "status", 429
+            ));
+        }
+        if (code == 401 || code == 403) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "error", "Bad Gateway",
+                    "message", "AI service authentication failed. Check the AI service configuration.",
+                    "status", 502
+            ));
+        }
+        if (code == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "error", "Bad Request",
+                    "message", "AI service rejected the request. Please try again.",
+                    "status", 400
+            ));
+        }
+        if (code == 502 || code == 503) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "error", "Bad Gateway",
+                    "message", "AI service is unavailable. Please try again.",
+                    "status", 502
+            ));
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "error", "Internal Server Error",
+                "message", "Unable to generate the AI response. Please try again.",
+                "status", 500
+        ));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

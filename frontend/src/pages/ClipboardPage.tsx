@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ClipboardEntry } from '../types/clipboard';
-import { getClipboardEntries } from '../api/clipboardApi';
+import { clearClipboardHistory, getClipboardEntries } from '../api/clipboardApi';
 import { ClipboardItem } from '../components/ClipboardItem';
-import { RefreshCw, ClipboardList } from 'lucide-react';
+import { RefreshCw, ClipboardList, Trash2 } from 'lucide-react';
 import { ErrorState } from '../components/ErrorState';
 
-export const ClipboardPage: React.FC = () => {
+interface ClipboardPageProps {
+  targetEntryId?: number | null;
+}
+
+export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) => {
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -33,6 +38,42 @@ export const ClipboardPage: React.FC = () => {
     loadEntries();
   }, [loadEntries]);
 
+  // Handle scrolling and highlighting targetEntryId
+  useEffect(() => {
+    if (targetEntryId && entries.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById(`clipboard-entry-${targetEntryId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('entry-highlight');
+          setTimeout(() => el.classList.remove('entry-highlight'), 3000);
+        }
+      }, 100);
+    }
+  }, [targetEntryId, entries]);
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Are you sure you want to clear your entire clipboard history? This cannot be undone.')) {
+      return;
+    }
+
+    setClearing(true);
+    try {
+      await clearClipboardHistory();
+      setEntries([]);
+      setLastUpdated(new Date());
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to clear clipboard history.';
+      alert(msg);
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleDeleteEntry = (id: number) => {
+    setEntries((prev) => prev.filter((entry) => entry.id !== id));
+  };
+
   const formattedTime = lastUpdated
     ? lastUpdated.toLocaleTimeString([], {
         hour: '2-digit',
@@ -54,11 +95,25 @@ export const ClipboardPage: React.FC = () => {
           <button
             className="btn-secondary"
             onClick={loadEntries}
-            disabled={loading}
+            disabled={loading || clearing}
             aria-label="Refresh Clipboard"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
+          </button>
+          <button
+            className="btn-secondary btn-danger-outline"
+            onClick={handleClearHistory}
+            disabled={loading || clearing || entries.length === 0}
+            aria-label="Clear History"
+            data-testid="clear-history-btn"
+          >
+            {clearing ? (
+              <RefreshCw size={14} className="animate-spin" />
+            ) : (
+              <Trash2 size={14} />
+            )}
+            <span>Clear History</span>
           </button>
         </div>
       </header>
@@ -77,7 +132,7 @@ export const ClipboardPage: React.FC = () => {
         )}
 
         {!loading && !error && entries.length === 0 && (
-          <div className="state-container">
+          <div className="state-container" data-testid="empty-clipboard-state">
             <ClipboardList className="state-icon" />
             <h2 className="state-title">No Clipboard Entries Found</h2>
             <p className="state-description">
@@ -98,7 +153,11 @@ export const ClipboardPage: React.FC = () => {
               </span>
             </div>
             {entries.map((entry) => (
-              <ClipboardItem key={entry.id} entry={entry} />
+              <ClipboardItem
+                key={entry.id}
+                entry={entry}
+                onDelete={handleDeleteEntry}
+              />
             ))}
           </div>
         )}
@@ -106,3 +165,4 @@ export const ClipboardPage: React.FC = () => {
     </div>
   );
 };
+

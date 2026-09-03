@@ -62,9 +62,10 @@ class BackendClientTest {
                 null, null,
                 HttpClient.newHttpClient());
 
-        String assignedId = client.sendClipboardContent("SELECT * FROM users;");
+        BackendClient.SendResult result = client.sendClipboardContent("SELECT * FROM users;");
 
-        assertEquals("42", assignedId);
+        assertTrue(result.isSuccess());
+        assertEquals("42", result.backendId);
         assertEquals("{\"content\":\"SELECT * FROM users;\"}", receivedBody.get());
     }
 
@@ -75,7 +76,9 @@ class BackendClientTest {
                 "http://localhost:59999/api/auth/login",
                 null, null,
                 HttpClient.newHttpClient());
-        assertNull(client.sendClipboardContent("some text"));
+        BackendClient.SendResult result = client.sendClipboardContent("some text");
+        assertFalse(result.isSuccess());
+        assertEquals(BackendClient.SendResult.ErrorType.CONNECTION_FAILURE, result.errorType);
     }
 
     @Test
@@ -85,9 +88,9 @@ class BackendClientTest {
                 "http://localhost:" + port + "/api/auth/login",
                 null, null,
                 HttpClient.newHttpClient());
-        assertNull(client.sendClipboardContent(""));
-        assertNull(client.sendClipboardContent("   "));
-        assertNull(client.sendClipboardContent(null));
+        assertFalse(client.sendClipboardContent("").isSuccess());
+        assertFalse(client.sendClipboardContent("   ").isSuccess());
+        assertFalse(client.sendClipboardContent(null).isSuccess());
     }
 
     @Test
@@ -132,9 +135,10 @@ class BackendClientTest {
                 "agent", "secret",
                 HttpClient.newHttpClient());
 
-        String result = client.sendClipboardContent("hello world");
+        BackendClient.SendResult result = client.sendClipboardContent("hello world");
 
-        assertEquals("1", result);
+        assertTrue(result.isSuccess());
+        assertEquals("1", result.backendId);
         assertEquals("Bearer test-jwt-token", receivedAuth.get());
     }
 
@@ -178,15 +182,16 @@ class BackendClientTest {
                 "agent", "secret",
                 HttpClient.newHttpClient());
 
-        String result = client.sendClipboardContent("retry test");
+        BackendClient.SendResult result = client.sendClipboardContent("retry test");
 
-        assertEquals("7", result);
+        assertTrue(result.isSuccess());
+        assertEquals("7", result.backendId);
         assertEquals(2, authCallCount.get(),      "auth should be called twice (initial + re-auth)");
         assertEquals(2, clipboardCallCount.get(), "clipboard should be called twice (fail + retry)");
     }
 
     /**
-     * If re-authentication also fails, the method must return null without throwing.
+     * If re-authentication also fails, the method must return a failure result without throwing.
      */
     @Test
     void testReauthFailureReturnsNull() throws IOException {
@@ -208,7 +213,9 @@ class BackendClientTest {
                 "agent", "wrong-password",
                 HttpClient.newHttpClient());
 
-        assertNull(client.sendClipboardContent("should fail gracefully"));
+        BackendClient.SendResult result = client.sendClipboardContent("should fail gracefully");
+        assertFalse(result.isSuccess());
+        assertEquals(BackendClient.SendResult.ErrorType.HTTP_401, result.errorType);
     }
 
     /**
@@ -283,5 +290,90 @@ class BackendClientTest {
         assertEquals(fakeToken, token);
         assertNotEquals(password, token, "token must not equal the raw password");
         assertFalse(token.contains(password), "token must not contain the raw password");
+    }
+
+    @Test
+    void testDirectAgentTokenIsUsedWithoutCallingAuth() throws IOException {
+        AtomicInteger authCallCount = new AtomicInteger(0);
+
+        mockServer.createContext("/api/auth/agent-login", exchange -> {
+            authCallCount.incrementAndGet();
+            exchange.sendResponseHeaders(400, 0);
+            exchange.close();
+        });
+
+        mockServer.createContext("/api/clipboard", exchange -> {
+            receivedAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            byte[] response = "{\"id\":99,\"status\":\"RECEIVED\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(201, response.length);
+            try (OutputStream os = exchange.getResponseBody()) { os.write(response); }
+        });
+        mockServer.start();
+
+        BackendClient client = new BackendClient(
+                "http://localhost:" + port + "/api/clipboard",
+                "http://localhost:" + port + "/api/auth/agent-login",
+                null, null,
+                "pre-configured-agent-token",
+                HttpClient.newHttpClient());
+
+        BackendClient.SendResult result = client.sendClipboardContent("direct agent token content");
+
+        assertTrue(result.isSuccess());
+        assertEquals("99", result.backendId);
+        assertEquals(0, authCallCount.get(), "auth endpoint must not be called when AGENT_TOKEN is directly supplied");
+        assertEquals("Bearer pre-configured-agent-token", receivedAuth.get());
+    }
+
+    /**
+     * A 401 from the clipboard endpoint with a pre-configured token (no credentials) should
+     * return HTTP_401 error type rather than CONNECTION_FAILURE.
+     */
+    @Test
+    void test401WithNoCredentialsReturns401ErrorType() throws IOException {
+        mockServer.createContext("/api/clipboard", exchange -> {
+            exchange.sendResponseHeaders(401, -1);
+            exchange.getResponseBody().close();
+        });
+        mockServer.start();
+
+        BackendClient client = new BackendClient(
+                "http://localhost:" + port + "/api/clipboard",
+                "http://localhost:" + port + "/api/auth/agent-login",
+                null, null,
+                "stale-or-invalid-token",
+                HttpClient.newHttpClient());
+
+        BackendClient.SendResult result = client.sendClipboardContent("test content");
+
+        assertFalse(result.isSuccess());
+        assertEquals(BackendClient.SendResult.ErrorType.HTTP_401, result.errorType);
+        assertEquals(401, result.httpStatus);
+    }
+
+    /**
+     * A 403 from the clipboard endpoint should be returned as HTTP_403 error type.
+     */
+    @Test
+    void test403ReturnsForbiddenErrorType() throws IOException {
+        mockServer.createContext("/api/clipboard", exchange -> {
+            exchange.sendResponseHeaders(403, -1);
+            exchange.getResponseBody().close();
+        });
+        mockServer.start();
+
+        BackendClient client = new BackendClient(
+                "http://localhost:" + port + "/api/clipboard",
+                "http://localhost:" + port + "/api/auth/agent-login",
+                null, null,
+                "some-token",
+                HttpClient.newHttpClient());
+
+        BackendClient.SendResult result = client.sendClipboardContent("test content");
+
+        assertFalse(result.isSuccess());
+        assertEquals(BackendClient.SendResult.ErrorType.HTTP_403, result.errorType);
+        assertEquals(403, result.httpStatus);
     }
 }

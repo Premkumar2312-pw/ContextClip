@@ -34,4 +34,19 @@ public class AuthController {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/agent-login")
+    public ResponseEntity<AuthResponse> agentLogin(@RequestBody(required = false) LoginRequest request) {
+        AuthResponse response = authService.agentLogin(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/agent-token")
+    public ResponseEntity<AuthResponse> getAgentToken(org.springframework.security.core.Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        AuthResponse response = authService.generateAgentTokenForUser(authentication.getName());
+        return ResponseEntity.ok(response);
+    }
 }

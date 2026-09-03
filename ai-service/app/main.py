@@ -1,19 +1,20 @@
-from fastapi import FastAPI, HTTPException, status
+﻿from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from groq import RateLimitError, AuthenticationError, APIConnectionError, BadRequestError, InternalServerError, APIError
 
-from app.services.gemini_service import GeminiService
+from app.services.groq_service import GroqService
 
 # Load local .env file if present
 load_dotenv()
 
 app = FastAPI(
     title="ContextClip AI Service",
-    description="Standalone Python AI Service for ContextClip intelligent clipboard system (Google Gemini API)",
-    version="0.1.0"
+    description="Standalone Python AI Service for ContextClip intelligent clipboard system (Groq API)",
+    version="0.2.0"
 )
 
-gemini_service = GeminiService()
+groq_service = GroqService()
 
 MAX_PROMPT_LENGTH = 10000
 
@@ -21,6 +22,7 @@ MAX_PROMPT_LENGTH = 10000
 class HealthResponse(BaseModel):
     status: str
     service: str
+    configured: bool
 
 
 class GenerateRequest(BaseModel):
@@ -39,7 +41,8 @@ class GenerateResponse(BaseModel):
 def health():
     return HealthResponse(
         status="UP",
-        service="ContextClip AI Service"
+        service="ContextClip AI Service",
+        configured=groq_service.is_configured()
     )
 
 
@@ -63,17 +66,40 @@ def generate(request: GenerateRequest):
         )
 
     try:
-        result = gemini_service.generate_response(request.prompt.strip())
+        result = groq_service.generate_response(request.prompt.strip())
         return GenerateResponse(response=result)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-    except RuntimeError as e:
+    except RateLimitError as e:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(e)
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Groq API rate limit reached: {str(e)}"
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Groq API authentication failed: {str(e)}"
+        )
+    except (APIConnectionError, InternalServerError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Groq API service unavailable: {str(e)}"
+        )
+    except BadRequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Groq API bad request: {str(e)}"
+        )
+    except APIError as e:
+        status_code = getattr(e, "status_code", 502) or 502
+        if status_code not in [400, 401, 403, 429, 500, 502, 503]:
+            status_code = 502
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Groq API error: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(

@@ -51,8 +51,8 @@ class AuthTest {
 
     @BeforeEach
     void setUp() {
-        userRepository.deleteAll();
         clipboardRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test
@@ -369,13 +369,21 @@ class AuthTest {
         assertEquals("USER",  jwtService.extractRole(userToken));
         assertEquals("AGENT", jwtService.extractRole(agentToken));
 
-        // Both can access the clipboard endpoint
+        // User can access GET /api/clipboard
         mockMvc.perform(get("/api/clipboard")
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk());
 
+        // Agent can submit POST /api/clipboard
+        mockMvc.perform(post("/api/clipboard")
+                        .header("Authorization", "Bearer " + agentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"agent captured snippet\"}"))
+                .andExpect(status().isCreated());
+
+        // Agent cannot access GET /api/clipboard (role restricted)
         mockMvc.perform(get("/api/clipboard")
                         .header("Authorization", "Bearer " + agentToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 }

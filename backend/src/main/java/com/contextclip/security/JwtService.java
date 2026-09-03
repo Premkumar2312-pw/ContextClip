@@ -53,6 +53,20 @@ public class JwtService {
                 .compact();
     }
 
+    public String generateAgentToken(String username) {
+        Date now = new Date();
+        long agentExpirationMillis = 30L * 24 * 60 * 60 * 1000L;
+        Date expiryDate = new Date(now.getTime() + agentExpirationMillis);
+
+        return Jwts.builder()
+                .subject(username)
+                .claim("role", "AGENT")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }

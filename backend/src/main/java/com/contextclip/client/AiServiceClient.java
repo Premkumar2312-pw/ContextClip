@@ -49,20 +49,20 @@ public class AiServiceClient {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
             if (response.statusCode() != 200) {
-                throw new AiServiceException("AI Service returned HTTP " + response.statusCode() + ": " + response.body());
+                throw new AiServiceException("AI Service returned HTTP " + response.statusCode() + ": " + response.body(), response.statusCode());
             }
 
             JsonNode root = objectMapper.readTree(response.body());
             JsonNode responseNode = root.get("response");
             if (responseNode == null || responseNode.isNull() || responseNode.asText().trim().isEmpty()) {
-                throw new AiServiceException("AI Service returned an invalid or empty response");
+                throw new AiServiceException("AI Service returned an invalid or empty response", 502);
             }
 
             return responseNode.asText().trim();
         } catch (AiServiceException e) {
             throw e;
         } catch (Exception e) {
-            throw new AiServiceException("Failed to communicate with AI Service: " + e.getMessage(), e);
+            throw new AiServiceException("Failed to communicate with AI Service: " + e.getMessage(), 503, e);
         }
     }
 

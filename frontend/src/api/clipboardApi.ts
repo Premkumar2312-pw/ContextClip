@@ -17,8 +17,16 @@ async function parseAiError(response: Response): Promise<string> {
     return 'AI service rate limit reached. Please try again later.';
   }
 
+  if (status === 401 || status === 403) {
+    return 'AI service authentication failed. Check the AI service configuration.';
+  }
+
+  if (status === 400) {
+    return 'AI service rejected the request. Please try again.';
+  }
+
   if (status === 502 || status === 503) {
-    return 'AI service could not complete the request. Please try again.';
+    return 'AI service is unavailable. Please try again.';
   }
 
   let bodyText = '';
@@ -42,9 +50,13 @@ async function parseAiError(response: Response): Promise<string> {
           lower.includes('failed to communicate with ai service') ||
           lower.includes('connection refused') ||
           lower.includes('connectexception') ||
+          lower.includes('unavailable') ||
           lower.includes('null')
         ) {
-          return 'AI service is unavailable. Make sure the AI service is running and try again.';
+          return 'AI service is unavailable. Please try again.';
+        }
+        if (lower.includes('authentication') || lower.includes('api key') || lower.includes('unauthorized')) {
+          return 'AI service authentication failed. Check the AI service configuration.';
         }
         // Don't show stack traces or internal exception names
         if (!lower.includes('exception') && !lower.includes('at ') && !lower.includes('null')) {
@@ -52,7 +64,6 @@ async function parseAiError(response: Response): Promise<string> {
         }
       }
     } catch {
-      // not json, check plain text
       const lower = bodyText.toLowerCase();
       if (lower.includes('rate limit') || lower.includes('quota') || lower.includes('429')) {
         return 'AI service rate limit reached. Please try again later.';
@@ -61,9 +72,10 @@ async function parseAiError(response: Response): Promise<string> {
         lower.includes('failed to communicate with ai service') ||
         lower.includes('connection refused') ||
         lower.includes('connectexception') ||
+        lower.includes('unavailable') ||
         lower.includes('null')
       ) {
-        return 'AI service is unavailable. Make sure the AI service is running and try again.';
+        return 'AI service is unavailable. Please try again.';
       }
     }
   }
@@ -72,7 +84,7 @@ async function parseAiError(response: Response): Promise<string> {
     return 'Unable to generate the AI response. Please try again.';
   }
 
-  return 'AI service is unavailable. Make sure the AI service is running and try again.';
+  return 'AI service is unavailable. Please try again.';
 }
 
 export async function getClipboardEntries(): Promise<ClipboardEntry[]> {
@@ -124,7 +136,7 @@ export async function explainClipboardEntry(id: number): Promise<ClipboardExplan
         throw err;
       }
     }
-    throw new Error('AI service is unavailable. Make sure the AI service is running and try again.');
+    throw new Error('AI service is unavailable. Please try again.');
   }
 }
 
@@ -145,7 +157,7 @@ export async function summarizeClipboardEntry(id: number): Promise<ClipboardSumm
         throw err;
       }
     }
-    throw new Error('AI service is unavailable. Make sure the AI service is running and try again.');
+    throw new Error('AI service is unavailable. Please try again.');
   }
 }
 
@@ -173,6 +185,41 @@ export async function askClipboard(request: ClipboardAskRequest): Promise<Clipbo
         throw err;
       }
     }
-    throw new Error('AI service is unavailable. Make sure the AI service is running and try again.');
+    throw new Error('AI service is unavailable. Please try again.');
   }
 }
+
+export async function deleteClipboardEntry(id: number): Promise<void> {
+  const response = await authFetch(`${BASE_URL}/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete clipboard entry: ${response.status} ${response.statusText}`);
+  }
+}
+
+export async function clearClipboardHistory(): Promise<void> {
+  const response = await authFetch(BASE_URL, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to clear clipboard history: ${response.status} ${response.statusText}`);
+  }
+}
+
+export interface AgentTokenResponse {
+  token: string;
+  username: string;
+  role: string;
+}
+
+export async function getAgentToken(): Promise<AgentTokenResponse> {
+  const response = await authFetch('/api/auth/agent-token', {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to obtain agent token: ${response.status} ${response.statusText}`);
+  }
+  return await response.json();
+}
+

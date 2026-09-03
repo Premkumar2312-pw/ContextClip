@@ -2,6 +2,7 @@ package com.contextclip.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -58,11 +59,22 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json");
-                            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
+                            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required\",\"status\":401}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"Access denied\",\"status\":403}");
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/agent-token").hasRole("USER")
                         .requestMatchers("/api/auth/**", "/api/health").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/clipboard").hasAnyRole("USER", "AGENT")
+                        .requestMatchers("/api/clipboard/**").hasRole("USER")
+                        .requestMatchers(HttpMethod.GET, "/api/clipboard").hasRole("USER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/clipboard").hasRole("USER")
+                        .requestMatchers("/api/analytics/**").hasRole("USER")
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
@@ -71,3 +83,4 @@ public class SecurityConfig {
         return http.build();
     }
 }
+

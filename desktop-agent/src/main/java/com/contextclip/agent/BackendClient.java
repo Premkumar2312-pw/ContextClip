@@ -1,10 +1,12 @@
 package com.contextclip.agent;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -34,7 +36,7 @@ import java.util.regex.Pattern;
 public class BackendClient {
 
     public static final String DEFAULT_ENDPOINT_URL  = "http://localhost:8080/api/clipboard";
-    public static final String DEFAULT_AUTH_URL       = "http://localhost:8080/api/auth/login";
+    public static final String DEFAULT_AUTH_URL       = "http://localhost:8080/api/auth/agent-login";
 
     private static final Pattern ID_PATTERN    = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
     private static final Pattern TOKEN_PATTERN = Pattern.compile("\"token\"\\s*:\\s*\"([^\"]+)\"");
@@ -49,14 +51,52 @@ public class BackendClient {
     private volatile String cachedToken = null;
 
     // -------------------------------------------------------------------------
+    // Result type for send operations
+    // -------------------------------------------------------------------------
+
+    /**
+     * Result of a {@link #sendClipboardContent(String)} call.
+     * Distinguishes success from specific failure modes.
+     */
+    public static class SendResult {
+        public enum ErrorType { NONE, CONNECTION_FAILURE, HTTP_401, HTTP_403, HTTP_429, HTTP_5XX, HTTP_OTHER }
+
+        public final String backendId;       // non-null on success
+        public final ErrorType errorType;
+        public final int httpStatus;         // 0 when not an HTTP error
+
+        private SendResult(String backendId, ErrorType errorType, int httpStatus) {
+            this.backendId  = backendId;
+            this.errorType  = errorType;
+            this.httpStatus = httpStatus;
+        }
+
+        public boolean isSuccess() { return backendId != null; }
+
+        public static SendResult success(String id)          { return new SendResult(id, ErrorType.NONE, 0); }
+        public static SendResult connFailure()               { return new SendResult(null, ErrorType.CONNECTION_FAILURE, 0); }
+        public static SendResult httpError(int status) {
+            ErrorType t = switch (status) {
+                case 401 -> ErrorType.HTTP_401;
+                case 403 -> ErrorType.HTTP_403;
+                case 429 -> ErrorType.HTTP_429;
+                default  -> status >= 500 ? ErrorType.HTTP_5XX : ErrorType.HTTP_OTHER;
+            };
+            return new SendResult(null, t, status);
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Constructors
     // -------------------------------------------------------------------------
 
     /**
      * Production no-arg constructor. Reads configuration from environment variables:
      * <ul>
+     *   <li>{@code AGENT_TOKEN}            — pre-generated user agent JWT token (preferred)</li>
+     *   <li>{@code DESKTOP_AGENT_TOKEN}    — alternative env var for agent JWT token</li>
      *   <li>{@code DESKTOP_AGENT_API_URL}  — clipboard endpoint (default: localhost:8080)</li>
-     *   <li>{@code DESKTOP_AGENT_AUTH_URL} — auth login endpoint (default: localhost:8080)</li>
+     *   <li>{@code DESKTOP_AGENT_AUTH_URL} — auth login endpoint (default: localhost:8080/api/auth/agent-login)</li>
      *   <li>{@code AGENT_USERNAME}         — agent credential username</li>
      *   <li>{@code AGENT_PASSWORD}         — agent credential password</li>
      * </ul>
@@ -65,8 +105,9 @@ public class BackendClient {
         this(
             envOrDefault("DESKTOP_AGENT_API_URL",  DEFAULT_ENDPOINT_URL),
             envOrDefault("DESKTOP_AGENT_AUTH_URL", DEFAULT_AUTH_URL),
-            System.getenv("AGENT_USERNAME"),
-            System.getenv("AGENT_PASSWORD"),
+            null, // Do not fall back to shared AGENT_USERNAME
+            null, // Do not fall back to shared AGENT_PASSWORD
+            firstNonBlank(System.getenv("AGENT_TOKEN"), System.getenv("DESKTOP_AGENT_TOKEN")),
             HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(3))
                     .build()
@@ -74,15 +115,26 @@ public class BackendClient {
     }
 
     /**
-     * Fully-specified constructor used in tests.
+     * Fully-specified constructor used in tests (without pre-set token).
      */
     public BackendClient(String endpointUrl, String authUrl,
                          String agentUsername, String agentPassword,
+                         HttpClient httpClient) {
+        this(endpointUrl, authUrl, agentUsername, agentPassword, null, httpClient);
+    }
+
+    /**
+     * Fully-specified constructor supporting direct agent token injection.
+     */
+    public BackendClient(String endpointUrl, String authUrl,
+                         String agentUsername, String agentPassword,
+                         String agentToken,
                          HttpClient httpClient) {
         this.endpointUrl   = endpointUrl;
         this.authUrl       = authUrl;
         this.agentUsername = agentUsername;
         this.agentPassword = agentPassword;
+        this.cachedToken   = (agentToken != null && !agentToken.isBlank()) ? agentToken.trim() : null;
         this.httpClient    = httpClient;
     }
 
@@ -94,12 +146,11 @@ public class BackendClient {
      * Sends the captured clipboard content to the backend.
      *
      * @param content the raw text from the clipboard
-     * @return the assigned backend ID if successful, or {@code null} if the
-     *         request could not be completed
+     * @return {@link SendResult} describing success or the specific error type
      */
-    public String sendClipboardContent(String content) {
+    public SendResult sendClipboardContent(String content) {
         if (content == null || content.trim().isEmpty()) {
-            return null;
+            return SendResult.connFailure();
         }
 
         // Ensure we have a token before the first attempt
@@ -107,9 +158,9 @@ public class BackendClient {
             cachedToken = authenticate();
         }
 
-        String result = postClipboard(content, cachedToken);
+        SendResult result = postClipboard(content, cachedToken);
 
-        if (result == null && cachedToken != null) {
+        if (!result.isSuccess() && result.errorType == SendResult.ErrorType.HTTP_401 && hasCredentials()) {
             // Token may have expired — re-authenticate and retry exactly once
             cachedToken = authenticate();
             if (cachedToken != null) {
@@ -172,16 +223,16 @@ public class BackendClient {
     }
 
     /**
-     * Sends a single clipboard POST. Returns the backend-assigned ID on success
-     * ({@code 200} or {@code 201}), or {@code null} on any failure (including 401).
+     * Sends a single clipboard POST. Returns a {@link SendResult} indicating
+     * success (with backend-assigned ID) or the specific failure type.
      */
-    private String postClipboard(String content, String token) {
+    private SendResult postClipboard(String content, String token) {
         String jsonPayload = "{\"content\":\"" + escapeJson(content) + "\"}";
 
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(endpointUrl))
-                    .timeout(Duration.ofSeconds(3))
+                    .timeout(Duration.ofSeconds(5))
                     .header("Content-Type", "application/json");
 
             if (token != null && !token.isBlank()) {
@@ -197,21 +248,23 @@ public class BackendClient {
             if (response.statusCode() == 201 || response.statusCode() == 200) {
                 Matcher matcher = ID_PATTERN.matcher(response.body());
                 if (matcher.find()) {
-                    return matcher.group(1);
+                    return SendResult.success(matcher.group(1));
                 }
-                return "OK";
+                return SendResult.success("OK");
             }
-            // Return null for 401 and any other non-success status;
-            // the caller handles the 401 retry logic
-            return null;
 
+            // Return specific HTTP error result — allows caller to distinguish 401 from 5xx
+            return SendResult.httpError(response.statusCode());
+
+        } catch (ConnectException | HttpTimeoutException e) {
+            return SendResult.connFailure();
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            return null;
+            return SendResult.connFailure();
         } catch (Exception e) {
-            return null;
+            return SendResult.connFailure();
         }
     }
 
@@ -223,6 +276,12 @@ public class BackendClient {
     private static String envOrDefault(String name, String defaultValue) {
         String value = System.getenv(name);
         return (value != null && !value.isBlank()) ? value : defaultValue;
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a.trim();
+        if (b != null && !b.isBlank()) return b.trim();
+        return null;
     }
 
     /**

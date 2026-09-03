@@ -1,10 +1,14 @@
 package com.contextclip.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
@@ -33,6 +37,12 @@ public class ClipboardEntry {
     @Column(name = "category", nullable = false)
     private String category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
+    @JsonIgnore
+    private User user;
+
     public ClipboardEntry() {
     }
 
@@ -41,20 +51,30 @@ public class ClipboardEntry {
     }
 
     public ClipboardEntry(String content, String type, String technology, String category) {
+        this(content, type, technology, category, null);
+    }
+
+    public ClipboardEntry(String content, String type, String technology, String category, User user) {
         this.content = content;
         this.type = type != null ? type : "TEXT";
         this.technology = technology != null ? technology : "UNKNOWN";
         this.category = category != null ? category : "GENERAL";
+        this.user = user;
         this.capturedAt = Instant.now();
     }
 
     public ClipboardEntry(Long id, String content, Instant capturedAt, String type, String technology, String category) {
+        this(id, content, capturedAt, type, technology, category, null);
+    }
+
+    public ClipboardEntry(Long id, String content, Instant capturedAt, String type, String technology, String category, User user) {
         this.id = id;
         this.content = content;
         this.capturedAt = capturedAt != null ? capturedAt : Instant.now();
         this.type = type != null ? type : "TEXT";
         this.technology = technology != null ? technology : "UNKNOWN";
         this.category = category != null ? category : "GENERAL";
+        this.user = user;
     }
 
     @PrePersist
@@ -119,5 +139,13 @@ public class ClipboardEntry {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 }

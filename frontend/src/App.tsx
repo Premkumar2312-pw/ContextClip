@@ -16,6 +16,14 @@ const MainAppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [authRoute, setAuthRoute] = useState<AuthRoute>('login');
   const [regSuccessMessage, setRegSuccessMessage] = useState<string | null>(null);
+  const [targetEntryId, setTargetEntryId] = useState<number | null>(null);
+
+  const handleNavigateToClipboard = (entryId?: number) => {
+    if (entryId) {
+      setTargetEntryId(entryId);
+    }
+    setActiveTab('clipboard');
+  };
 
   if (!isAuthenticated) {
     if (authRoute === 'register') {
@@ -48,11 +56,11 @@ const MainAppContent: React.FC = () => {
     <div className="app-layout">
       <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
       {activeTab === 'dashboard' && (
-        <DashboardOverviewPage onNavigateToClipboard={() => setActiveTab('clipboard')} />
+        <DashboardOverviewPage onNavigateToClipboard={() => handleNavigateToClipboard()} />
       )}
-      {activeTab === 'clipboard' && <ClipboardPage />}
+      {activeTab === 'clipboard' && <ClipboardPage targetEntryId={targetEntryId} />}
       {activeTab === 'ask' && (
-        <AskClipboardPage onNavigateToClipboard={() => setActiveTab('clipboard')} />
+        <AskClipboardPage onNavigateToClipboard={handleNavigateToClipboard} />
       )}
       {activeTab === 'search' && <SearchPage />}
       {activeTab === 'analytics' && <AnalyticsPage />}

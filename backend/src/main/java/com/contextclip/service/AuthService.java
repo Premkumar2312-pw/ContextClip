@@ -84,4 +84,37 @@ public class AuthService {
         String token = jwtService.generateToken(user.getUsername(), user.getRole());
         return new AuthResponse(token, user.getUsername(), user.getRole());
     }
+
+    public AuthResponse generateAgentTokenForUser(String username) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new InvalidCredentialsException("Username is required");
+        }
+        User user = userRepository.findByUsername(username.trim())
+                .orElseThrow(() -> new InvalidCredentialsException("User not found: " + username));
+        String token = jwtService.generateAgentToken(user.getUsername());
+        return new AuthResponse(token, user.getUsername(), "AGENT");
+    }
+
+    public AuthResponse agentLogin(LoginRequest request) {
+        if (request == null) {
+            throw new InvalidCredentialsException("Invalid username or password");
+        }
+
+        String username = request.username();
+        String password = request.password();
+
+        if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
+            throw new InvalidCredentialsException("Invalid username or password");
+        }
+
+        User user = userRepository.findByUsername(username.trim())
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid username or password"));
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new InvalidCredentialsException("Invalid username or password");
+        }
+
+        String token = jwtService.generateAgentToken(user.getUsername());
+        return new AuthResponse(token, user.getUsername(), "AGENT");
+    }
 }

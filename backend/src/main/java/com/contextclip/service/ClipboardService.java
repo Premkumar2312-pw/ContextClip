@@ -7,8 +7,10 @@ import com.contextclip.dto.ClipboardExplanationResponse;
 import com.contextclip.dto.ClipboardQuestionResponse;
 import com.contextclip.dto.ClipboardSummaryResponse;
 import com.contextclip.model.ClipboardEntry;
+import com.contextclip.model.User;
 import com.contextclip.repository.ClipboardRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,18 +52,30 @@ public class ClipboardService {
     }
 
     public ClipboardEntry save(String content) {
+        return save(content, null);
+    }
+
+    public ClipboardEntry save(String content, User user) {
         ClassificationResult classification = clipboardClassifier.classify(content);
         ClipboardEntry entry = new ClipboardEntry(
                 content,
                 classification.type(),
                 classification.technology(),
-                classification.category()
+                classification.category(),
+                user
         );
         return clipboardRepository.save(entry);
     }
 
     public List<ClipboardEntry> getAll() {
         return clipboardRepository.findAll();
+    }
+
+    public List<ClipboardEntry> getAll(User user) {
+        if (user == null) {
+            return clipboardRepository.findAll();
+        }
+        return clipboardRepository.findByUserOrderByCapturedAtDesc(user);
     }
 
     public List<ClipboardEntry> search(String q, String type, String technology, String category) {
@@ -73,9 +87,26 @@ public class ClipboardService {
         return clipboardRepository.search(cleanQ, cleanType, cleanTech, cleanCat);
     }
 
+    public List<ClipboardEntry> search(User user, String q, String type, String technology, String category) {
+        if (user == null) {
+            return search(q, type, technology, category);
+        }
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+        String cleanType = (type != null && !type.trim().isEmpty()) ? type.trim() : null;
+        String cleanTech = (technology != null && !technology.trim().isEmpty()) ? technology.trim() : null;
+        String cleanCat = (category != null && !category.trim().isEmpty()) ? category.trim() : null;
+
+        return clipboardRepository.search(user, cleanQ, cleanType, cleanTech, cleanCat);
+    }
+
     public ClipboardExplanationResponse explain(Long id) {
-        ClipboardEntry entry = clipboardRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"));
+        return explain(id, null);
+    }
+
+    public ClipboardExplanationResponse explain(Long id, User user) {
+        ClipboardEntry entry = user == null
+                ? clipboardRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"))
+                : clipboardRepository.findByIdAndUser(id, user).orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"));
 
         if (entry.getContent() == null || entry.getContent().trim().isEmpty()) {
             throw new IllegalArgumentException("Clipboard content cannot be empty or blank");
@@ -87,8 +118,13 @@ public class ClipboardService {
     }
 
     public ClipboardSummaryResponse summarize(Long id) {
-        ClipboardEntry entry = clipboardRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"));
+        return summarize(id, null);
+    }
+
+    public ClipboardSummaryResponse summarize(Long id, User user) {
+        ClipboardEntry entry = user == null
+                ? clipboardRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"))
+                : clipboardRepository.findByIdAndUser(id, user).orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"));
 
         if (entry.getContent() == null || entry.getContent().trim().isEmpty()) {
             throw new IllegalArgumentException("Clipboard content cannot be empty or blank");
@@ -100,6 +136,10 @@ public class ClipboardService {
     }
 
     public ClipboardQuestionResponse askClipboard(String question) {
+        return askClipboard(question, null);
+    }
+
+    public ClipboardQuestionResponse askClipboard(String question, User user) {
         if (question == null || question.trim().isEmpty()) {
             throw new IllegalArgumentException("Question cannot be empty or blank");
         }
@@ -109,7 +149,11 @@ public class ClipboardService {
         }
 
         String cleanQuestion = question.trim();
-        List<ClipboardEntry> relevantEntries = findRelevantEntries(cleanQuestion);
+        List<ClipboardEntry> relevantEntries = findRelevantEntries(cleanQuestion, user);
+
+        if (relevantEntries.isEmpty()) {
+            return new ClipboardQuestionResponse("No clipboard entries found in your history to answer this question.", List.of());
+        }
 
         String prompt = buildAskPrompt(cleanQuestion, relevantEntries);
         String answer = aiServiceClient.generateResponse(prompt);
@@ -122,33 +166,54 @@ public class ClipboardService {
     }
 
     public List<ClipboardEntry> findRelevantEntries(String question) {
+        return findRelevantEntries(question, null);
+    }
+
+    public List<ClipboardEntry> findRelevantEntries(String question, User user) {
         List<String> keywords = extractKeywords(question);
         Map<Long, ClipboardEntry> matches = new LinkedHashMap<>();
 
-        // Search by extracted keywords across content, technology, type, and category
-        for (String keyword : keywords) {
-            // Match content
-            for (ClipboardEntry e : clipboardRepository.search(keyword, null, null, null)) {
-                matches.putIfAbsent(e.getId(), e);
+        if (user != null) {
+            for (String keyword : keywords) {
+                for (ClipboardEntry e : clipboardRepository.search(user, keyword, null, null, null)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+                for (ClipboardEntry e : clipboardRepository.search(user, null, null, keyword, null)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+                for (ClipboardEntry e : clipboardRepository.search(user, null, keyword, null, null)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+                for (ClipboardEntry e : clipboardRepository.search(user, null, null, null, keyword)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
             }
-            // Match technology
-            for (ClipboardEntry e : clipboardRepository.search(null, null, keyword, null)) {
-                matches.putIfAbsent(e.getId(), e);
-            }
-            // Match type
-            for (ClipboardEntry e : clipboardRepository.search(null, keyword, null, null)) {
-                matches.putIfAbsent(e.getId(), e);
-            }
-            // Match category
-            for (ClipboardEntry e : clipboardRepository.search(null, null, null, keyword)) {
-                matches.putIfAbsent(e.getId(), e);
-            }
-        }
 
-        // If no keyword matches found, fallback to most recent clipboard history
-        if (matches.isEmpty()) {
-            for (ClipboardEntry e : clipboardRepository.search(null, null, null, null)) {
-                matches.putIfAbsent(e.getId(), e);
+            if (matches.isEmpty()) {
+                for (ClipboardEntry e : clipboardRepository.findByUserOrderByCapturedAtDesc(user)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+            }
+        } else {
+            for (String keyword : keywords) {
+                for (ClipboardEntry e : clipboardRepository.search(keyword, null, null, null)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+                for (ClipboardEntry e : clipboardRepository.search(null, null, keyword, null)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+                for (ClipboardEntry e : clipboardRepository.search(null, keyword, null, null)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+                for (ClipboardEntry e : clipboardRepository.search(null, null, null, keyword)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
+            }
+
+            if (matches.isEmpty()) {
+                for (ClipboardEntry e : clipboardRepository.search(null, null, null, null)) {
+                    matches.putIfAbsent(e.getId(), e);
+                }
             }
         }
 
@@ -183,6 +248,10 @@ public class ClipboardService {
             sb.append("(No relevant clipboard entries found in history)\n\n");
         } else {
             for (ClipboardEntry entry : entries) {
+                String content = entry.getContent() != null ? entry.getContent() : "";
+                if (content.length() > 800) {
+                    content = content.substring(0, 800) + "\n...[content truncated]";
+                }
                 sb.append(String.format("""
                     Clipboard Entry #%d
                     Type: %s
@@ -196,7 +265,7 @@ public class ClipboardService {
                     entry.getType() != null ? entry.getType() : "UNKNOWN",
                     entry.getTechnology() != null ? entry.getTechnology() : "UNKNOWN",
                     entry.getCategory() != null ? entry.getCategory() : "UNKNOWN",
-                    entry.getContent()
+                    content
                 ));
             }
         }
@@ -210,7 +279,11 @@ public class ClipboardService {
             - Mention relevant commands, code snippets, or content where appropriate.
             """);
 
-        return sb.toString().trim();
+        String prompt = sb.toString().trim();
+        if (prompt.length() > 9500) {
+            prompt = prompt.substring(0, 9500) + "\n...[context truncated]";
+        }
+        return prompt;
     }
 
     public String buildExplanationPrompt(ClipboardEntry entry) {
@@ -250,7 +323,34 @@ public class ClipboardService {
         ).trim();
     }
 
+    @Transactional
+    public void delete(Long id) {
+        clipboardRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void delete(Long id, User user) {
+        if (user == null) {
+            delete(id);
+            return;
+        }
+        ClipboardEntry entry = clipboardRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new NoSuchElementException("Clipboard entry with ID " + id + " not found"));
+        clipboardRepository.delete(entry);
+    }
+
+    @Transactional
     public void clear() {
         clipboardRepository.deleteAll();
     }
+
+    @Transactional
+    public void clear(User user) {
+        if (user == null) {
+            clear();
+            return;
+        }
+        clipboardRepository.deleteByUser(user);
+    }
 }
+

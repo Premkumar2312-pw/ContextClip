@@ -1543,3 +1543,60 @@ body {
   .ask-sources-list { flex-direction: column; }
   .ask-source-chip { max-width: 100%; }
 }
+
+/* Delete and Danger actions */
+.btn-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: var(--color-danger);
+}
+
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger-outline {
+  color: var(--color-danger);
+  border-color: #FECACA;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background: #FEE2E2;
+  border-color: #F87171;
+  color: #DC2626;
+}
+
+/* Source item highlight when navigated from Ask */
+@keyframes highlightPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4);
+    border-color: var(--accent-primary);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.25);
+    border-color: var(--accent-primary);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    border-color: var(--border-subtle);
+  }
+}
+
+.entry-highlight {
+  animation: highlightPulse 2.5s ease-in-out;
+  border-color: var(--accent-primary) !important;
+}

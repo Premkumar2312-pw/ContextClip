@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ClipboardEntry } from '../types/clipboard';
-import { explainClipboardEntry, summarizeClipboardEntry } from '../api/clipboardApi';
+import { deleteClipboardEntry, explainClipboardEntry, summarizeClipboardEntry } from '../api/clipboardApi';
 import { MarkdownView } from './MarkdownView';
 import {
   Sparkles,
@@ -10,15 +10,18 @@ import {
   X,
   RefreshCw,
   Clock,
+  Trash2,
 } from 'lucide-react';
 
 interface ClipboardItemProps {
   entry: ClipboardEntry;
+  onDelete?: (id: number) => void;
 }
 
-export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry }) => {
+export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete }) => {
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // AI Explain state
   const [explanation, setExplanation] = useState<string | null>(null);
@@ -37,6 +40,22 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry }) => {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // fallback
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete clipboard entry #${entry.id}?`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteClipboardEntry(entry.id);
+      onDelete?.(entry.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete clipboard entry.';
+      alert(msg);
+      setIsDeleting(false);
     }
   };
 
@@ -88,7 +107,7 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry }) => {
   const isLongContent = entry.content.length > 220 || entry.content.split('\n').length > 5;
 
   return (
-    <div className="clipboard-card" data-testid={`clipboard-entry-${entry.id}`}>
+    <div className="clipboard-card" data-testid={`clipboard-entry-${entry.id}`} id={`clipboard-entry-${entry.id}`}>
       <div className="clipboard-card-header">
         <div className="entry-meta-badges">
           <span className="badge badge-id">#{entry.id}</span>
@@ -149,10 +168,22 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry }) => {
           </button>
         </div>
 
-        <button className="btn-copy" onClick={handleCopy} aria-label="Copy snippet">
-          {copied ? <Check size={14} color="#10B981" /> : <Copy size={14} />}
-          <span>{copied ? 'Copied' : 'Copy'}</span>
-        </button>
+        <div className="entry-util-actions" style={{ display: 'flex', gap: '6px' }}>
+          <button
+            className="btn-delete"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            aria-label={`Delete entry ${entry.id}`}
+            data-testid={`delete-entry-${entry.id}`}
+          >
+            {isDeleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+          </button>
+
+          <button className="btn-copy" onClick={handleCopy} aria-label="Copy snippet">
+            {copied ? <Check size={14} color="#10B981" /> : <Copy size={14} />}
+            <span>{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+        </div>
       </div>
 
       {/* AI Explanation Drawer */}
@@ -160,7 +191,7 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry }) => {
         <div className="ai-panel explain">
           <div className="ai-loading-indicator">
             <RefreshCw size={14} className="animate-spin" />
-            <span>Consulting Gemini for detailed explanation...</span>
+            <span>Consulting AI for detailed explanation...</span>
           </div>
         </div>
       )}
@@ -202,7 +233,7 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry }) => {
         <div className="ai-panel summary">
           <div className="ai-loading-indicator">
             <RefreshCw size={14} className="animate-spin" />
-            <span>Generating concise summary with Gemini...</span>
+            <span>Generating concise summary with AI...</span>
           </div>
         </div>
       )}
@@ -241,3 +272,4 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry }) => {
     </div>
   );
 };
+
