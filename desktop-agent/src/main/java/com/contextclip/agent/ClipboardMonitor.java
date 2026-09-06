@@ -21,6 +21,7 @@ public class ClipboardMonitor implements FlavorListener {
     private final Clipboard clipboard;
     private final Consumer<String> onTextCopied;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicBoolean paused = new AtomicBoolean(false);
     private String lastProcessedText = null;
 
     public ClipboardMonitor(Consumer<String> onTextCopied) {
@@ -51,6 +52,28 @@ public class ClipboardMonitor implements FlavorListener {
                 clipboard.addFlavorListener(this);
             }
         }
+    }
+
+    /**
+     * Pauses clipboard change notifications. Text copied while paused is not sent.
+     */
+    public synchronized void pause() {
+        if (paused.compareAndSet(false, true)) {
+            this.lastProcessedText = readClipboardTextSafe();
+        }
+    }
+
+    /**
+     * Resumes clipboard change notifications.
+     */
+    public synchronized void resume() {
+        if (paused.compareAndSet(true, false)) {
+            this.lastProcessedText = readClipboardTextSafe();
+        }
+    }
+
+    public boolean isPaused() {
+        return paused.get();
     }
 
     /**
@@ -91,6 +114,9 @@ public class ClipboardMonitor implements FlavorListener {
         String currentText = readClipboardTextSafe();
         if (currentText != null && !currentText.equals(lastProcessedText)) {
             lastProcessedText = currentText;
+            if (paused.get()) {
+                return;
+            }
             try {
                 onTextCopied.accept(currentText);
             } catch (Exception ex) {

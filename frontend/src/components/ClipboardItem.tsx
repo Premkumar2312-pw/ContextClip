@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ClipboardEntry } from '../types/clipboard';
 import { deleteClipboardEntry, explainClipboardEntry, summarizeClipboardEntry } from '../api/clipboardApi';
 import { MarkdownView } from './MarkdownView';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 import {
   Sparkles,
   FileText,
@@ -22,6 +23,8 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // AI Explain state
   const [explanation, setExplanation] = useState<string | null>(null);
@@ -43,18 +46,21 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Are you sure you want to delete clipboard entry #${entry.id}?`)) {
-      return;
-    }
+  const handleDeleteClick = () => {
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
 
+  const handleConfirmDelete = async () => {
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       await deleteClipboardEntry(entry.id);
+      setShowDeleteModal(false);
       onDelete?.(entry.id);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete clipboard entry.';
-      alert(msg);
+      setDeleteError(msg);
       setIsDeleting(false);
     }
   };
@@ -171,7 +177,7 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
         <div className="entry-util-actions" style={{ display: 'flex', gap: '6px' }}>
           <button
             className="btn-delete"
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             disabled={isDeleting}
             aria-label={`Delete entry ${entry.id}`}
             data-testid={`delete-entry-${entry.id}`}
@@ -185,6 +191,29 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
           </button>
         </div>
       </div>
+
+      {deleteError && (
+        <div className="entry-delete-error" role="alert">
+          <span>{deleteError}</span>
+          <button onClick={() => setDeleteError(null)} aria-label="Dismiss error">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        entryId={entry.id}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          if (!isDeleting) {
+            setShowDeleteModal(false);
+            setDeleteError(null);
+          }
+        }}
+      />
 
       {/* AI Explanation Drawer */}
       {explainLoading && (

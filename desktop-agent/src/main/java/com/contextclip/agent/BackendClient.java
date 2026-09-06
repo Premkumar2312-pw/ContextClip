@@ -45,6 +45,7 @@ public class BackendClient {
     private final String authUrl;
     private final String agentUsername;
     private final String agentPassword;
+    private final String tokenSource;
     private final HttpClient httpClient;
 
     /** Cached JWT — held in heap memory only, never persisted. */
@@ -86,28 +87,31 @@ public class BackendClient {
         }
     }
 
+    private static final int MAX_OFFLINE_BUFFER = 100;
+    private final java.util.Queue<String> offlineBuffer = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
     // -------------------------------------------------------------------------
     // Constructors
     // -------------------------------------------------------------------------
 
     /**
-     * Production no-arg constructor. Reads configuration from environment variables:
-     * <ul>
-     *   <li>{@code AGENT_TOKEN}            — pre-generated user agent JWT token (preferred)</li>
-     *   <li>{@code DESKTOP_AGENT_TOKEN}    — alternative env var for agent JWT token</li>
-     *   <li>{@code DESKTOP_AGENT_API_URL}  — clipboard endpoint (default: localhost:8080)</li>
-     *   <li>{@code DESKTOP_AGENT_AUTH_URL} — auth login endpoint (default: localhost:8080/api/auth/agent-login)</li>
-     *   <li>{@code AGENT_USERNAME}         — agent credential username</li>
-     *   <li>{@code AGENT_PASSWORD}         — agent credential password</li>
-     * </ul>
+     * Production no-arg constructor. Reads configuration hierarchically via {@link AgentConfig}.
      */
     public BackendClient() {
+        this(AgentConfig.load());
+    }
+
+    /**
+     * Constructor supporting injected {@link AgentConfig}.
+     */
+    public BackendClient(AgentConfig config) {
         this(
-            envOrDefault("DESKTOP_AGENT_API_URL",  DEFAULT_ENDPOINT_URL),
-            envOrDefault("DESKTOP_AGENT_AUTH_URL", DEFAULT_AUTH_URL),
+            config.getEndpointUrl(),
+            config.getAuthUrl(),
             null, // Do not fall back to shared AGENT_USERNAME
             null, // Do not fall back to shared AGENT_PASSWORD
-            firstNonBlank(System.getenv("AGENT_TOKEN"), System.getenv("DESKTOP_AGENT_TOKEN")),
+            config.getAgentToken(),
+            config.getTokenSource(),
             HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(3))
                     .build()
@@ -120,7 +124,7 @@ public class BackendClient {
     public BackendClient(String endpointUrl, String authUrl,
                          String agentUsername, String agentPassword,
                          HttpClient httpClient) {
-        this(endpointUrl, authUrl, agentUsername, agentPassword, null, httpClient);
+        this(endpointUrl, authUrl, agentUsername, agentPassword, null, null, httpClient);
     }
 
     /**
@@ -130,11 +134,20 @@ public class BackendClient {
                          String agentUsername, String agentPassword,
                          String agentToken,
                          HttpClient httpClient) {
+        this(endpointUrl, authUrl, agentUsername, agentPassword, agentToken, null, httpClient);
+    }
+
+    public BackendClient(String endpointUrl, String authUrl,
+                         String agentUsername, String agentPassword,
+                         String agentToken,
+                         String tokenSource,
+                         HttpClient httpClient) {
         this.endpointUrl   = endpointUrl;
         this.authUrl       = authUrl;
         this.agentUsername = agentUsername;
         this.agentPassword = agentPassword;
-        this.cachedToken   = (agentToken != null && !agentToken.isBlank()) ? agentToken.trim() : null;
+        this.cachedToken   = (agentToken != null && !agentToken.isBlank()) ? AgentConfig.stripQuotes(agentToken.trim()) : null;
+        this.tokenSource   = tokenSource != null ? tokenSource : "direct";
         this.httpClient    = httpClient;
     }
 
@@ -168,7 +181,42 @@ public class BackendClient {
             }
         }
 
+        if (result.isSuccess()) {
+            flushOfflineBuffer();
+        } else if (result.errorType == SendResult.ErrorType.CONNECTION_FAILURE) {
+            bufferOfflineContent(content);
+        }
+
         return result;
+    }
+
+    private void bufferOfflineContent(String content) {
+        if (offlineBuffer.size() >= MAX_OFFLINE_BUFFER) {
+            offlineBuffer.poll();
+        }
+        offlineBuffer.offer(content);
+    }
+
+    private void flushOfflineBuffer() {
+        while (!offlineBuffer.isEmpty()) {
+            String buffered = offlineBuffer.peek();
+            if (buffered == null) break;
+            SendResult res = postClipboard(buffered, cachedToken);
+            if (res.isSuccess()) {
+                offlineBuffer.poll();
+                System.out.println("Flushed offline clipboard entry (Backend ID: " + res.backendId + ").");
+            } else {
+                break;
+            }
+        }
+    }
+
+    public int getOfflineBufferSize() {
+        return offlineBuffer.size();
+    }
+
+    public void clearOfflineBuffer() {
+        offlineBuffer.clear();
     }
 
     // -------------------------------------------------------------------------
@@ -236,7 +284,18 @@ public class BackendClient {
                     .header("Content-Type", "application/json");
 
             if (token != null && !token.isBlank()) {
-                builder.header("Authorization", "Bearer " + token);
+                String cleanToken = AgentConfig.stripQuotes(token.trim());
+                builder.header("Authorization", "Bearer " + cleanToken);
+
+                // Safe diagnostic logging — NEVER prints the actual JWT
+                AgentConfig.JwtClaimsSummary summary = AgentConfig.inspectTokenMetadata(cleanToken);
+                System.out.println("[Agent] Sending POST " + endpointUrl
+                        + " (token source: " + (tokenSource != null ? tokenSource : "in-memory")
+                        + ", token length: " + cleanToken.length()
+                        + ", role: " + (summary.role != null ? summary.role : "unknown")
+                        + ", parts: " + summary.partsCount + ")");
+            } else {
+                System.out.println("[Agent] Sending POST " + endpointUrl + " (no token)");
             }
 
             HttpRequest request = builder

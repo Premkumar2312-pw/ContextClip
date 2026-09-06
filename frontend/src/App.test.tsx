@@ -5,6 +5,7 @@ import * as analyticsApi from './api/analyticsApi';
 import * as clipboardApi from './api/clipboardApi';
 import * as authApi from './api/authApi';
 import { authStorage } from './auth/authStorage';
+import { MarkdownView } from './components/MarkdownView';
 
 const mockAnalyticsData = {
   overview: {
@@ -640,6 +641,167 @@ describe('ContextClip Authentication and Application UI Tests', () => {
         expect(screen.getByText('Second answer')).toBeInTheDocument();
       });
       expect(screen.queryByText('First answer')).not.toBeInTheDocument();
+    });
+
+    it('36. MarkdownView renders headings, bold, italic, lists, and tables', () => {
+      const markdown = `
+# Heading 1
+## Heading 2
+### Heading 3
+#### Heading 4
+
+**Bold text** and *Italic text* and ~~Strikethrough~~
+
+- Bullet item 1
+- Bullet item 2
+
+1. Numbered item 1
+2. Numbered item 2
+
+| Command | Purpose |
+| :--- | :--- |
+| \`docker ps\` | Status |
+| \`docker logs\` | View output |
+`;
+      const { container } = render(<MarkdownView content={markdown} />);
+
+      // Headings
+      expect(screen.getByRole('heading', { name: 'Heading 1' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Heading 2' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Heading 3' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Heading 4' })).toBeInTheDocument();
+
+      // Bold & Italic
+      expect(screen.getByText('Bold text')).toBeInTheDocument();
+      expect(screen.getByText('Italic text')).toBeInTheDocument();
+      expect(screen.getByText('Strikethrough')).toBeInTheDocument();
+
+      // Lists
+      expect(screen.getByText('Bullet item 1')).toBeInTheDocument();
+      expect(screen.getByText('Numbered item 1')).toBeInTheDocument();
+
+      // Table elements
+      const table = container.querySelector('table');
+      expect(table).toBeInTheDocument();
+      expect(table).toHaveClass('md-table');
+      expect(screen.getByText('Command')).toBeInTheDocument();
+      expect(screen.getByText('Purpose')).toBeInTheDocument();
+      expect(screen.getByText('Status')).toBeInTheDocument();
+      expect(screen.getByText('View output')).toBeInTheDocument();
+    });
+
+    it('37. MarkdownView renders inline code and fenced code blocks cleanly without nested pre', () => {
+      const markdown = `Here is inline \`console.log("hi")\` code.
+
+\`\`\`javascript
+function test() {
+  return 42;
+}
+\`\`\`
+`;
+      const { container } = render(<MarkdownView content={markdown} />);
+
+      const inlineCode = container.querySelector('code.md-inline-code');
+      expect(inlineCode).toBeInTheDocument();
+      expect(inlineCode).toHaveTextContent('console.log("hi")');
+
+      const pre = container.querySelector('pre.md-pre');
+      expect(pre).toBeInTheDocument();
+      // Ensure NO nested pre tags
+      expect(pre?.querySelector('pre')).toBeNull();
+
+      const blockCode = pre?.querySelector('code.md-code-block');
+      expect(blockCode).toBeInTheDocument();
+      expect(blockCode).toHaveTextContent('return 42;');
+    });
+
+    it('38. Enhanced source chips render technology/type tag and icon', async () => {
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue([
+        {
+          id: 42,
+          content: 'docker compose up -d',
+          capturedAt: '2026-08-30T12:00:00Z',
+          type: 'COMMAND',
+          technology: 'DOCKER',
+          category: 'DEVOPS',
+        },
+      ]);
+      vi.spyOn(clipboardApi, 'askClipboard').mockResolvedValue({
+        answer: 'You have a Docker command.',
+        sources: [42],
+      });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'Docker?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ask-source-42')).toBeInTheDocument();
+      });
+
+      const chip = screen.getByTestId('ask-source-42');
+      expect(chip).toHaveTextContent('#42');
+      expect(chip).toHaveTextContent('DOCKER');
+      expect(chip).toHaveTextContent('docker compose up -d');
+    });
+
+    it('39. Clicking Delete opens in-app confirmation modal, Cancel dismisses without deleting', async () => {
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue(mockClipboardEntries);
+      const deleteSpy = vi.spyOn(clipboardApi, 'deleteClipboardEntry').mockResolvedValue(undefined as any);
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+
+      await waitFor(() => expect(screen.getByText('docker compose up --build')).toBeInTheDocument());
+
+      const deleteBtn = screen.getByTestId('delete-entry-11');
+      fireEvent.click(deleteBtn);
+
+      // Modal should appear
+      expect(screen.getByTestId('delete-confirm-modal')).toBeInTheDocument();
+      expect(screen.getByText('Delete clipboard entry?')).toBeInTheDocument();
+      expect(screen.getByText(/Are you sure you want to delete clipboard entry #11\?/i)).toBeInTheDocument();
+
+      // Click Cancel
+      fireEvent.click(screen.getByTestId('delete-modal-cancel'));
+
+      // Modal should close without calling delete API
+      expect(screen.queryByTestId('delete-confirm-modal')).toBeNull();
+      expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
+    it('40. Confirming Delete in modal executes delete API and removes entry', async () => {
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue(mockClipboardEntries);
+      const deleteSpy = vi.spyOn(clipboardApi, 'deleteClipboardEntry').mockResolvedValue(undefined as any);
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+
+      await waitFor(() => expect(screen.getByText('docker compose up --build')).toBeInTheDocument());
+
+      const deleteBtn = screen.getByTestId('delete-entry-11');
+      fireEvent.click(deleteBtn);
+
+      expect(screen.getByTestId('delete-confirm-modal')).toBeInTheDocument();
+
+      // Click Delete in modal
+      fireEvent.click(screen.getByTestId('delete-modal-confirm'));
+
+      await waitFor(() => {
+        expect(deleteSpy).toHaveBeenCalledWith(11);
+      });
+
+      // Entry should be removed from view
+      await waitFor(() => {
+        expect(screen.queryByTestId('clipboard-entry-11')).toBeNull();
+      });
+      expect(screen.queryByTestId('delete-confirm-modal')).toBeNull();
     });
   });
 });

@@ -1,10 +1,5 @@
 package com.contextclip.agent;
 
-import com.sun.net.httpserver.HttpServer;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -13,7 +8,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.sun.net.httpserver.HttpServer;
 
 class BackendClientTest {
 
@@ -375,5 +380,76 @@ class BackendClientTest {
         assertFalse(result.isSuccess());
         assertEquals(BackendClient.SendResult.ErrorType.HTTP_403, result.errorType);
         assertEquals(403, result.httpStatus);
+    }
+
+    /**
+     * CRITICAL TEST: Verifies that BackendClient sends the EXACT token shape:
+     * header.payload.signature in Authorization: Bearer header
+     * without any surrounding quotes, escaping, or truncation.
+     */
+    @Test
+    void testDeterministicJwtAuthorizationHeader() throws IOException {
+        String testJwt = "header.payload.signature";
+
+        mockServer.createContext("/api/clipboard", exchange -> {
+            receivedAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            byte[] response = "{\"id\":42,\"status\":\"RECEIVED\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(201, response.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(response);
+            }
+        });
+        mockServer.start();
+
+        AgentConfig config = new AgentConfig(
+                testJwt,
+                "http://localhost:" + port + "/api/clipboard",
+                "http://localhost:" + port + "/api/auth/agent-login",
+                "test-source"
+        );
+
+        BackendClient client = new BackendClient(config);
+        BackendClient.SendResult result = client.sendClipboardContent("PHASE11_REAL_AGENT_TEST");
+
+        assertTrue(result.isSuccess());
+        assertEquals("42", result.backendId);
+        assertNotNull(receivedAuth.get(), "Authorization header must be present");
+        assertEquals("Bearer " + testJwt, receivedAuth.get(), "Authorization header must match exactly: Bearer <FULL_JWT>");
+        assertFalse(receivedAuth.get().contains("\""), "Authorization header must NOT contain quotes around JWT");
+    }
+
+    /**
+     * Verifies that if a token was configured with accidental quotes,
+     * BackendClient sends it cleanly without quotes.
+     */
+    @Test
+    void testQuotedJwtTokenStrippedBeforeSend() throws IOException {
+        String testJwtWithQuotes = "\"header.payload.signature\"";
+
+        mockServer.createContext("/api/clipboard", exchange -> {
+            receivedAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            byte[] response = "{\"id\":43,\"status\":\"RECEIVED\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(201, response.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(response);
+            }
+        });
+        mockServer.start();
+
+        AgentConfig config = new AgentConfig(
+                testJwtWithQuotes,
+                "http://localhost:" + port + "/api/clipboard",
+                "http://localhost:" + port + "/api/auth/agent-login",
+                "test-source"
+        );
+
+        BackendClient client = new BackendClient(config);
+        BackendClient.SendResult result = client.sendClipboardContent("PHASE11_REAL_AGENT_TEST");
+
+        assertTrue(result.isSuccess());
+        assertEquals("43", result.backendId);
+        assertEquals("Bearer header.payload.signature", receivedAuth.get());
     }
 }

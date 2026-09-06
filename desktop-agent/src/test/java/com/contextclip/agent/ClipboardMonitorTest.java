@@ -70,4 +70,86 @@ class ClipboardMonitorTest {
         assertEquals("docker compose up --build", capturedContents.get(0));
         assertEquals("git status", capturedContents.get(1));
     }
+
+    @Test
+    void testPausePreventsSendingClipboardContent() {
+        monitor.start();
+        monitor.pause();
+        assertTrue(monitor.isPaused());
+
+        testClipboard.setContents(new StringSelection("Should not be captured while paused"), null);
+        monitor.processClipboardChange();
+
+        assertEquals(0, capturedContents.size(), "No content should be captured while paused");
+    }
+
+    @Test
+    void testResumeRestoresSendingClipboardContent() {
+        monitor.start();
+        monitor.pause();
+        assertTrue(monitor.isPaused());
+
+        testClipboard.setContents(new StringSelection("Ignored text"), null);
+        monitor.processClipboardChange();
+        assertEquals(0, capturedContents.size());
+
+        monitor.resume();
+        assertFalse(monitor.isPaused());
+
+        testClipboard.setContents(new StringSelection("Captured after resume"), null);
+        monitor.processClipboardChange();
+
+        assertEquals(1, capturedContents.size());
+        assertEquals("Captured after resume", capturedContents.get(0));
+    }
+
+    @Test
+    void testResumeDoesNotAutomaticallyUploadOldPausedContent() {
+        monitor.start();
+        monitor.pause();
+        assertTrue(monitor.isPaused());
+
+        // Copy text while paused
+        testClipboard.setContents(new StringSelection("PAUSE_SUPPRESSED_TEST"), null);
+        monitor.processClipboardChange();
+        assertEquals(0, capturedContents.size(), "Nothing captured while paused");
+
+        // Resume monitoring
+        monitor.resume();
+        assertFalse(monitor.isPaused());
+
+        // Merely resuming must not invoke callback or upload the old paused item
+        assertEquals(0, capturedContents.size(), "Resuming must not automatically upload old paused content");
+
+        // Only subsequent new content copied after resume triggers callback
+        testClipboard.setContents(new StringSelection("RESUME_ACTIVE_TEST"), null);
+        monitor.processClipboardChange();
+
+        assertEquals(1, capturedContents.size());
+        assertEquals("RESUME_ACTIVE_TEST", capturedContents.get(0));
+    }
+
+    @Test
+    void testRepeatedPauseResumeCyclesAreStable() {
+        monitor.start();
+
+        for (int i = 1; i <= 3; i++) {
+            monitor.pause();
+            assertTrue(monitor.isPaused(), "Cycle " + i + " must be paused");
+
+            testClipboard.setContents(new StringSelection("Suppressed " + i), null);
+            monitor.processClipboardChange();
+            assertEquals(i - 1, capturedContents.size());
+
+            monitor.resume();
+            assertFalse(monitor.isPaused(), "Cycle " + i + " must not be paused");
+
+            testClipboard.setContents(new StringSelection("Active " + i), null);
+            monitor.processClipboardChange();
+            assertEquals(i, capturedContents.size());
+            assertEquals("Active " + i, capturedContents.get(i - 1));
+        }
+
+        assertFalse(monitor.isPaused());
+    }
 }

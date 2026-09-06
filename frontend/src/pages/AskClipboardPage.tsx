@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, RotateCcw, X, Clipboard as ClipboardIcon } from 'lucide-react';
+import { MessageSquare, RotateCcw, X, Clipboard as ClipboardIcon, ArrowUpRight } from 'lucide-react';
 import { askClipboard, getClipboardEntries } from '../api/clipboardApi';
 import { ClipboardAskResponse, ClipboardEntry } from '../types/clipboard';
 import { MarkdownView } from '../components/MarkdownView';
@@ -269,20 +269,26 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
                     <div className="ask-sources-list">
                       {result.sources.map((id) => {
                         const entry = getSourceEntry(id);
+                        const tag = entry?.technology && entry.technology !== 'UNKNOWN'
+                          ? entry.technology
+                          : entry?.type && entry.type !== 'TEXT' && entry.type !== 'UNKNOWN'
+                            ? entry.type
+                            : null;
                         return (
                           <button
                             key={id}
                             className="ask-source-chip"
                             onClick={() => onNavigateToClipboard?.(id)}
                             aria-label={`Source entry ${id}`}
+                            title={`Jump to clipboard entry #${id}`}
                             data-testid={`ask-source-${id}`}
                           >
                             <span className="ask-source-id">#{id}</span>
-                            {entry && (
-                              <span className="ask-source-preview">
-                                {truncate(entry.content)}
-                              </span>
-                            )}
+                            {tag && <span className="ask-source-tag">{tag}</span>}
+                            <span className="ask-source-preview">
+                              {entry ? truncate(entry.content, 70) : `Entry #${id}`}
+                            </span>
+                            <ArrowUpRight size={13} className="ask-source-icon" aria-hidden="true" />
                           </button>
                         );
                       })}
