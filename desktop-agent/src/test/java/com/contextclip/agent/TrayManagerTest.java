@@ -84,3 +84,4 @@ class TrayManagerTest {
         assertEquals(ConnectionStatus.RATE_LIMITED, trayManager.getCurrentStatus());
     }
 }
+
