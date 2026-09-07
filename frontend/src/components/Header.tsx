@@ -5,12 +5,16 @@ interface HeaderProps {
   lastUpdated: Date | null;
   loading: boolean;
   onRefresh: () => void;
+  title?: string;
+  subtitle?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   lastUpdated,
   loading,
   onRefresh,
+  title = 'Clipboard Analytics',
+  subtitle = 'Insights into captured snippets, languages, categories, and patterns',
 }) => {
   const formattedTime = lastUpdated
     ? lastUpdated.toLocaleTimeString([], {
@@ -23,13 +27,16 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="top-header">
       <div className="page-title-group">
-        <h1>Clipboard Analytics</h1>
-        <p>Insights into captured snippets, languages, categories, and patterns</p>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
       </div>
 
       <div className="header-actions">
         {lastUpdated && (
-          <span className="last-updated">Updated {formattedTime}</span>
+          <span className="last-updated-pill">
+            <span className="pulse-indicator" />
+            Updated {formattedTime}
+          </span>
         )}
         <button
           className="btn-secondary"

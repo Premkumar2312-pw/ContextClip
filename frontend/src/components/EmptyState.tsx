@@ -1,23 +1,39 @@
 import React from 'react';
-import { ClipboardList, RefreshCw } from 'lucide-react';
+import { ClipboardList, RefreshCw, ArrowRight } from 'lucide-react';
 
 interface EmptyStateProps {
   onRefresh: () => void;
+  onNavigate?: () => void;
+  navigateLabel?: string;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ onRefresh }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({
+  onRefresh,
+  onNavigate,
+  navigateLabel = 'View Clipboard',
+}) => {
   return (
-    <div className="state-container">
-      <ClipboardList className="state-icon" />
-      <h2 className="state-title">No Clipboard Activity Yet</h2>
-      <p className="state-description">
-        Your clipboard history is currently empty. Copy code snippets, commands, or text with the ContextClip desktop agent running to start tracking analytics.
+    <div className="empty-state-card">
+      <div className="empty-state-icon-wrap">
+        <ClipboardList className="empty-state-icon" />
+      </div>
+      <h2 className="empty-state-title">No Clipboard Activity Yet</h2>
+      <p className="empty-state-desc">
+        Copy code snippets, commands, or text with the ContextClip desktop agent running to start
+        tracking your clipboard history.
       </p>
-      <button className="btn-secondary" onClick={onRefresh}>
-        <RefreshCw size={14} style={{ display: 'inline', marginRight: 6 }} />
-        Check for New Entries
-      </button>
+      <div className="empty-state-actions">
+        {onNavigate && (
+          <button className="btn-primary empty-state-cta" onClick={onNavigate}>
+            <span>{navigateLabel}</span>
+            <ArrowRight size={14} />
+          </button>
+        )}
+        <button className="btn-secondary" onClick={onRefresh}>
+          <RefreshCw size={14} />
+          <span>Check Again</span>
+        </button>
+      </div>
     </div>
   );
 };
-

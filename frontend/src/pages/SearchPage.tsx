@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ClipboardEntry, SearchParams } from '../types/clipboard';
 import { searchClipboard } from '../api/clipboardApi';
 import { ClipboardItem } from '../components/ClipboardItem';
-import { Search, RotateCcw, SearchX } from 'lucide-react';
+import { Search, RotateCcw, SearchX, X } from 'lucide-react';
 import { ErrorState } from '../components/ErrorState';
 
 const TYPE_OPTIONS = [
@@ -111,7 +111,7 @@ export const SearchPage: React.FC = () => {
         <section className="search-controls-card">
           <form onSubmit={handleSearchSubmit}>
             <div className="search-input-wrapper">
-              <Search className="search-icon" />
+              <Search className="search-icon" size={18} />
               <input
                 type="text"
                 className="search-input"
@@ -120,6 +120,31 @@ export const SearchPage: React.FC = () => {
                 onChange={(e) => setParams({ ...params, q: e.target.value })}
                 aria-label="Search clipboard input"
               />
+              {params.q && (
+                <button
+                  type="button"
+                  className="search-clear-inline"
+                  onClick={() => {
+                    const updated = { ...params, q: '' };
+                    setParams(updated);
+                    executeSearch(updated);
+                  }}
+                  aria-label="Clear search text"
+                  style={{
+                    position: 'absolute',
+                    right: '110px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              )}
               <button type="submit" className="btn-primary" disabled={loading}>
                 Search
               </button>
@@ -214,16 +239,22 @@ export const SearchPage: React.FC = () => {
         )}
 
         {!loading && !error && hasSearched && results.length === 0 && (
-          <div className="state-container">
-            <SearchX className="state-icon" />
-            <h2 className="state-title">No Clipboard Entries Matched Your Search</h2>
-            <p className="state-description">
-              Try adjusting your search query, or clear filters to view all entries.
+          <div className="empty-state-card">
+            <div className="empty-state-icon-wrap">
+              <SearchX className="empty-state-icon" />
+            </div>
+            <h2 className="empty-state-title">No Clipboard Entries Matched Your Search</h2>
+            <p className="empty-state-desc">
+              Try adjusting your search query, or clear all filters to view your full clipboard
+              history.
             </p>
             {hasActiveFilters && (
-              <button className="btn-secondary" onClick={handleClearFilters}>
-                Clear Active Filters
-              </button>
+              <div className="empty-state-actions">
+                <button className="btn-secondary" onClick={handleClearFilters}>
+                  <RotateCcw size={14} />
+                  <span>Clear Filters</span>
+                </button>
+              </div>
             )}
           </div>
         )}

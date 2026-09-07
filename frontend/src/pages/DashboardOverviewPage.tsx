@@ -35,15 +35,27 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({
     data.byTechnology.length === 0;
 
   return (
-    <div className="main-wrapper">
-      <Header lastUpdated={lastUpdated} loading={loading} onRefresh={refresh} />
+    <div className="main-wrapper dashboard-overview-page">
+      <Header
+        title="Dashboard Overview"
+        subtitle="Real-time clipboard activity, analytics, and recent captures"
+        lastUpdated={lastUpdated}
+        loading={loading}
+        onRefresh={refresh}
+      />
 
       <main className="content-container">
         {loading && !data && <LoadingSkeleton />}
 
         {error && !data && <ErrorState message={error} onRetry={refresh} />}
 
-        {data && isEmpty && <EmptyState onRefresh={refresh} />}
+        {data && isEmpty && (
+          <EmptyState
+            onRefresh={refresh}
+            onNavigate={onNavigateToClipboard}
+            navigateLabel="View Clipboard"
+          />
+        )}
 
         {data && !isEmpty && (
           <>

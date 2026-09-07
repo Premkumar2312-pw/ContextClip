@@ -6,6 +6,7 @@ import { ClipboardPage } from './pages/ClipboardPage';
 import { AskClipboardPage } from './pages/AskClipboardPage';
 import { SearchPage } from './pages/SearchPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { AgentPairingPage } from './pages/AgentPairingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 
@@ -63,7 +64,10 @@ const MainAppContent: React.FC = () => {
         <AskClipboardPage onNavigateToClipboard={handleNavigateToClipboard} />
       )}
       {activeTab === 'search' && <SearchPage />}
-      {activeTab === 'analytics' && <AnalyticsPage />}
+      {activeTab === 'analytics' && (
+        <AnalyticsPage onNavigateToClipboard={() => handleNavigateToClipboard()} />
+      )}
+      {activeTab === 'agent' && <AgentPairingPage />}
     </div>
   );
 };

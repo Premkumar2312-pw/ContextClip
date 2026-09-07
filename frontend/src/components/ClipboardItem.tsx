@@ -116,7 +116,7 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
     <div className="clipboard-card" data-testid={`clipboard-entry-${entry.id}`} id={`clipboard-entry-${entry.id}`}>
       <div className="clipboard-card-header">
         <div className="entry-meta-badges">
-          <span className="badge badge-id">#{entry.id}</span>
+          <span className="badge badge-id" title="Database reference ID">Entry #{entry.id}</span>
           <span className="badge badge-type">{entry.type || 'TEXT'}</span>
           <span className="badge badge-tech">{entry.technology || 'UNKNOWN'}</span>
           <span className="badge badge-cat">{entry.category || 'GENERAL'}</span>

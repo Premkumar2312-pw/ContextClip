@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, RotateCcw, X, Clipboard as ClipboardIcon, ArrowUpRight } from 'lucide-react';
+import {
+  MessageSquare,
+  RotateCcw,
+  X,
+  Clipboard as ClipboardIcon,
+  ArrowUpRight,
+  Copy,
+  Check,
+} from 'lucide-react';
 import { askClipboard, getClipboardEntries } from '../api/clipboardApi';
 import { ClipboardAskResponse, ClipboardEntry } from '../types/clipboard';
 import { MarkdownView } from '../components/MarkdownView';
@@ -29,6 +37,7 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [entriesLoaded, setEntriesLoaded] = useState(false);
+  const [copiedAnswer, setCopiedAnswer] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Load clipboard entries once for source detail lookup
@@ -87,7 +96,19 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
     setState('idle');
     setErrorMessage(null);
     setValidationError(null);
+    setCopiedAnswer(false);
     textareaRef.current?.focus();
+  };
+
+  const handleCopyAnswer = async () => {
+    if (!result?.answer) return;
+    try {
+      await navigator.clipboard.writeText(result.answer);
+      setCopiedAnswer(true);
+      setTimeout(() => setCopiedAnswer(false), 2000);
+    } catch {
+      // fallback
+    }
   };
 
   const handleExampleClick = (prompt: string) => {
@@ -117,17 +138,21 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
       <main className="content-container">
         {/* Empty state — no clipboard history */}
         {noHistory && (
-          <div className="state-container" data-testid="ask-empty-state">
-            <ClipboardIcon className="state-icon" />
-            <h2 className="state-title">No clipboard history available yet.</h2>
-            <p className="state-description">
+          <div className="empty-state-card" data-testid="ask-empty-state">
+            <div className="empty-state-icon-wrap">
+              <ClipboardIcon className="empty-state-icon" />
+            </div>
+            <h2 className="empty-state-title">No clipboard history available yet.</h2>
+            <p className="empty-state-desc">
               Start capturing clipboard entries with the Desktop Agent, then come back to ask
               questions about your history.
             </p>
             {onNavigateToClipboard && (
-              <button className="btn-secondary" onClick={() => onNavigateToClipboard()}>
-                Go to Clipboard
-              </button>
+              <div className="empty-state-actions">
+                <button className="btn-primary empty-state-cta" onClick={() => onNavigateToClipboard()}>
+                  Go to Clipboard
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -251,10 +276,32 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
             {/* Success — answer + sources */}
             {state === 'success' && result && (
               <section className="ask-result-card ask-result-success" data-testid="ask-result-panel">
-                {/* Question echo */}
-                <div className="ask-result-question" data-testid="ask-result-question">
-                  <span className="ask-result-q-label">Q:</span>
-                  <span className="ask-result-q-text">{question.trim()}</span>
+                <div className="ask-result-header">
+                  <div className="ask-result-question" data-testid="ask-result-question">
+                    <span className="ask-result-q-label">Q:</span>
+                    <span className="ask-result-q-text">{question.trim()}</span>
+                  </div>
+
+                  <div className="ask-result-actions">
+                    <button
+                      className="btn-secondary ask-copy-btn"
+                      onClick={handleCopyAnswer}
+                      aria-label="Copy AI response"
+                      title="Copy response to clipboard"
+                    >
+                      {copiedAnswer ? <Check size={14} color="#10B981" /> : <Copy size={14} />}
+                      <span>{copiedAnswer ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <button
+                      className="btn-secondary ask-clear-btn"
+                      onClick={handleClear}
+                      aria-label="Clear question and answer"
+                      data-testid="ask-clear-btn"
+                    >
+                      <X size={14} />
+                      <span>Clear</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Answer */}
@@ -283,12 +330,14 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
                             title={`Jump to clipboard entry #${id}`}
                             data-testid={`ask-source-${id}`}
                           >
-                            <span className="ask-source-id">#{id}</span>
-                            {tag && <span className="ask-source-tag">{tag}</span>}
+                            <div className="ask-source-top-row">
+                              <span className="ask-source-id">#{id}</span>
+                              {tag && <span className="ask-source-tag">{tag}</span>}
+                              <ArrowUpRight size={13} className="ask-source-icon" aria-hidden="true" />
+                            </div>
                             <span className="ask-source-preview">
-                              {entry ? truncate(entry.content, 70) : `Entry #${id}`}
+                              {entry ? truncate(entry.content, 90) : `Entry #${id}`}
                             </span>
-                            <ArrowUpRight size={13} className="ask-source-icon" aria-hidden="true" />
                           </button>
                         );
                       })}

@@ -8,15 +8,15 @@ interface MarkdownViewProps {
 
 export const MarkdownView: React.FC<MarkdownViewProps> = ({ content }) => {
   return (
-    <div className="markdown-body">
+    <div className="markdown-body md-view">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h3 className="md-heading md-h1">{children}</h3>,
-          h2: ({ children }) => <h4 className="md-heading md-h2">{children}</h4>,
-          h3: ({ children }) => <h5 className="md-heading md-h3">{children}</h5>,
-          h4: ({ children }) => <h6 className="md-heading md-h4">{children}</h6>,
-          h5: ({ children }) => <h6 className="md-heading md-h5">{children}</h6>,
+          h1: ({ children }) => <h1 className="md-heading md-h1">{children}</h1>,
+          h2: ({ children }) => <h2 className="md-heading md-h2">{children}</h2>,
+          h3: ({ children }) => <h3 className="md-heading md-h3">{children}</h3>,
+          h4: ({ children }) => <h4 className="md-heading md-h4">{children}</h4>,
+          h5: ({ children }) => <h5 className="md-heading md-h5">{children}</h5>,
           h6: ({ children }) => <h6 className="md-heading md-h6">{children}</h6>,
           p: ({ children }) => <p className="md-p">{children}</p>,
           ul: ({ children }) => <ul className="md-ul">{children}</ul>,

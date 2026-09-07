@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ClipboardEntry } from '../types/clipboard';
 import { clearClipboardHistory, getClipboardEntries } from '../api/clipboardApi';
 import { ClipboardItem } from '../components/ClipboardItem';
-import { RefreshCw, ClipboardList, Trash2 } from 'lucide-react';
+import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
+import { RefreshCw, ClipboardList, Trash2, X, Zap } from 'lucide-react';
 import { ErrorState } from '../components/ErrorState';
 
 interface ClipboardPageProps {
@@ -13,6 +14,8 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -52,19 +55,22 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
     }
   }, [targetEntryId, entries]);
 
-  const handleClearHistory = async () => {
-    if (!window.confirm('Are you sure you want to clear your entire clipboard history? This cannot be undone.')) {
-      return;
-    }
+  const handleOpenClearModal = () => {
+    setClearError(null);
+    setShowClearModal(true);
+  };
 
+  const handleConfirmClear = async () => {
     setClearing(true);
+    setClearError(null);
     try {
       await clearClipboardHistory();
       setEntries([]);
       setLastUpdated(new Date());
+      setShowClearModal(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to clear clipboard history.';
-      alert(msg);
+      setClearError(msg);
     } finally {
       setClearing(false);
     }
@@ -103,7 +109,7 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
           </button>
           <button
             className="btn-secondary btn-danger-outline"
-            onClick={handleClearHistory}
+            onClick={handleOpenClearModal}
             disabled={loading || clearing || entries.length === 0}
             aria-label="Clear History"
             data-testid="clear-history-btn"
@@ -119,6 +125,15 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
       </header>
 
       <main className="content-container">
+        {clearError && (
+          <div className="entry-delete-error" role="alert" style={{ margin: '0 0 16px 0' }}>
+            <span>{clearError}</span>
+            <button onClick={() => setClearError(null)} aria-label="Dismiss error">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {loading && entries.length === 0 && (
           <div aria-label="Loading clipboard entries">
             <div className="skeleton skeleton-row" />
@@ -132,16 +147,28 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
         )}
 
         {!loading && !error && entries.length === 0 && (
-          <div className="state-container" data-testid="empty-clipboard-state">
-            <ClipboardList className="state-icon" />
-            <h2 className="state-title">No Clipboard Entries Found</h2>
-            <p className="state-description">
-              Copy content to your clipboard with the ContextClip desktop agent running to view and manage snippets here.
+          <div className="empty-state-card" data-testid="empty-clipboard-state">
+            <div className="empty-state-icon-wrap">
+              <ClipboardList className="empty-state-icon" />
+            </div>
+            <h2 className="empty-state-title">No Clipboard Entries Found</h2>
+            <p className="empty-state-desc">
+              Copy text, commands, or code snippets with the ContextClip desktop agent running
+              to start capturing your history here.
             </p>
-            <button className="btn-secondary" onClick={loadEntries}>
-              <RefreshCw size={14} style={{ display: 'inline', marginRight: 6 }} />
-              Check for New Entries
-            </button>
+            <div className="empty-state-actions">
+              <div className="empty-state-hint-card">
+                <Zap size={14} className="empty-state-hint-icon" />
+                <span>
+                  Make sure the Desktop Agent is running and connected with your personal
+                  AGENT_TOKEN.
+                </span>
+              </div>
+              <button className="btn-secondary" onClick={loadEntries}>
+                <RefreshCw size={14} />
+                <span>Check for New Entries</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -161,8 +188,22 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
             ))}
           </div>
         )}
+
+        {/* Clear History Confirmation Modal */}
+        <DeleteConfirmModal
+          isOpen={showClearModal}
+          title="Clear all clipboard history?"
+          message="Are you sure you want to clear your entire clipboard history? All captured snippets and code will be permanently deleted. This action cannot be undone."
+          isDeleting={clearing}
+          onConfirm={handleConfirmClear}
+          onCancel={() => {
+            if (!clearing) {
+              setShowClearModal(false);
+              setClearError(null);
+            }
+          }}
+        />
       </main>
     </div>
   );
 };
-

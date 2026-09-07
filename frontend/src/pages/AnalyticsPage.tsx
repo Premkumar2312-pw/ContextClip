@@ -10,7 +10,11 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
 
-export const AnalyticsPage: React.FC = () => {
+interface AnalyticsPageProps {
+  onNavigateToClipboard?: () => void;
+}
+
+export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigateToClipboard }) => {
   const { data, loading, error, lastUpdated, refresh } = useAnalytics();
 
   const isEmpty =
@@ -30,7 +34,13 @@ export const AnalyticsPage: React.FC = () => {
 
         {error && !data && <ErrorState message={error} onRetry={refresh} />}
 
-        {data && isEmpty && <EmptyState onRefresh={refresh} />}
+        {data && isEmpty && (
+          <EmptyState
+            onRefresh={refresh}
+            onNavigate={onNavigateToClipboard}
+            navigateLabel="View Clipboard"
+          />
+        )}
 
         {data && !isEmpty && (
           <>

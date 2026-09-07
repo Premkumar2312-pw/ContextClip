@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X } from 'lucide-react';
 
 interface DeleteConfirmModalProps {
@@ -26,6 +27,10 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    // Prevent background scrolling while modal is open
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     // Focus cancel button by default for safe interaction
     cancelBtnRef.current?.focus();
 
@@ -37,6 +42,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
+      document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, isDeleting, onCancel]);
@@ -51,7 +57,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
 
   const displayMessage = message || defaultMessage;
 
-  return (
+  const modalContent = (
     <div
       className="modal-backdrop"
       data-testid="delete-modal-backdrop"
@@ -127,5 +133,10 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 };
 
