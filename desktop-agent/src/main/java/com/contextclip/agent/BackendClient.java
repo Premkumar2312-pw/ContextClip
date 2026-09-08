@@ -332,17 +332,6 @@ public class BackendClient {
                 && agentPassword != null && !agentPassword.isBlank();
     }
 
-    private static String envOrDefault(String name, String defaultValue) {
-        String value = System.getenv(name);
-        return (value != null && !value.isBlank()) ? value : defaultValue;
-    }
-
-    private static String firstNonBlank(String a, String b) {
-        if (a != null && !a.isBlank()) return a.trim();
-        if (b != null && !b.isBlank()) return b.trim();
-        return null;
-    }
-
     /**
      * Safely escapes special JSON characters in strings.
      */

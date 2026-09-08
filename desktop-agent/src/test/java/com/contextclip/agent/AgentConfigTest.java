@@ -30,6 +30,7 @@ class AgentConfigTest {
         assertEquals(AgentConfig.DEFAULT_ENDPOINT_URL, config.getEndpointUrl());
         assertEquals(AgentConfig.DEFAULT_AUTH_URL, config.getAuthUrl());
         assertTrue(config.hasValidToken());
+        assertTrue(config.isConfigured());
     }
 
     @Test

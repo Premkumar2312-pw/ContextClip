@@ -281,4 +281,12 @@ public class AgentConfig {
     public boolean hasValidToken() {
         return agentToken != null && isJwtStructured(agentToken);
     }
+
+    /**
+     * Checks if the agent is ready and configured for operation.
+     * Alias for {@link #hasValidToken()}, providing a clean semantic query for future commercial flow checks.
+     */
+    public boolean isConfigured() {
+        return hasValidToken();
+    }
 }

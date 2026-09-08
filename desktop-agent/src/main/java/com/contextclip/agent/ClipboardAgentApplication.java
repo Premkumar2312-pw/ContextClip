@@ -226,19 +226,13 @@ public class ClipboardAgentApplication {
         System.out.println("=================================");
         System.out.println("        CONTEXTCLIP AGENT");
         System.out.println("=================================");
-        System.out.println("Clipboard monitoring started.");
-        System.out.println("Copy text anywhere to test.");
-        System.out.println("Press Ctrl+C or use System Tray to exit.");
+        System.out.println("Clipboard monitoring active.");
+        System.out.println("Use the system tray icon to pause or exit.");
         System.out.flush();
     }
 
     private static void handleClipboardContent(String content) {
-        System.out.println("---------------------------------");
-        System.out.println("Clipboard Changed");
-        System.out.println("---------------------------------");
-        System.out.println("Content:");
-        System.out.println(content);
-        System.out.println("---------------------------------");
+        System.out.println("[Agent] Clipboard changed (" + (content != null ? content.length() : 0) + " chars detected)");
 
         BackendClient.SendResult result = backendClient.sendClipboardContent(content);
 
