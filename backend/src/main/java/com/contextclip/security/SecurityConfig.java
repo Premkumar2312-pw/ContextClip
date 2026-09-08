@@ -68,6 +68,8 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/api/agent/pairing/exchange").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/agent/pairing").hasRole("USER")
                         .requestMatchers("/api/auth/agent-token").hasRole("USER")
                         .requestMatchers("/api/auth/**", "/api/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/clipboard").hasAnyRole("USER", "AGENT")

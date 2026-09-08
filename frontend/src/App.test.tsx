@@ -803,5 +803,46 @@ function test() {
       });
       expect(screen.queryByTestId('delete-confirm-modal')).toBeNull();
     });
+
+    it('41. Connect Desktop page renders one-click pairing CTA and fallback manual controls', async () => {
+      authStorage.setAuth('valid-token-agent', { username: 'agentuser', role: 'USER' });
+      render(<App />);
+
+      fireEvent.click(screen.getByRole('button', { name: /agent navigation/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('connect-desktop-hero')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('connect-desktop-btn')).toBeInTheDocument();
+      expect(screen.getByTestId('generate-agent-token-btn')).toBeInTheDocument();
+    });
+
+    it('42. Clicking Connect Desktop requests pairing code and dispatches pairing URI', async () => {
+      authStorage.setAuth('valid-token-agent', { username: 'agentuser', role: 'USER' });
+      vi.spyOn(clipboardApi, 'createPairingCode').mockResolvedValue({
+        code: 'pair_test_random_123',
+        expiresInSeconds: 300,
+        pairUrl: 'contextclip://pair?code=pair_test_random_123',
+      });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /agent navigation/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('connect-desktop-btn')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('connect-desktop-btn'));
+
+      await waitFor(() => {
+        expect(clipboardApi.createPairingCode).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pairing-code-value')).toHaveTextContent('pair_test_random_123');
+      });
+      expect(screen.getByTestId('copy-pairing-code-btn')).toBeInTheDocument();
+    });
   });
 });

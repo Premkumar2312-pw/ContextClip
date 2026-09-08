@@ -223,3 +223,19 @@ export async function getAgentToken(): Promise<AgentTokenResponse> {
   return await response.json();
 }
 
+export interface PairingCodeResponse {
+  code: string;
+  expiresInSeconds: number;
+  pairUrl: string;
+}
+
+export async function createPairingCode(): Promise<PairingCodeResponse> {
+  const response = await authFetch('/api/agent/pairing', {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to generate pairing code: ${response.status} ${response.statusText}`);
+  }
+  return await response.json();
+}
+

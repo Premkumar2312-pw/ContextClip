@@ -181,6 +181,7 @@ public class TrayManager {
             case RATE_LIMITED -> new Color(249, 115, 22);   // Orange
             case UNAUTHORIZED, FORBIDDEN -> new Color(239, 68, 68); // Red
             case SERVER_ERROR, DISCONNECTED -> new Color(148, 163, 184); // Gray/Slate
+            case UNCONFIGURED -> new Color(59, 130, 246);   // Blue
         };
 
         g2d.setColor(statusColor);

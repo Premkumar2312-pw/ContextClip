@@ -10,7 +10,8 @@ public enum ConnectionStatus {
     FORBIDDEN("Forbidden (ROLE_AGENT not permitted)"),
     RATE_LIMITED("Rate Limited (Too Many Requests)"),
     SERVER_ERROR("Server Error (Backend 5xx)"),
-    PAUSED("Monitoring Paused");
+    PAUSED("Monitoring Paused"),
+    UNCONFIGURED("Unconfigured (Pairing required)");
 
     private final String displayName;
 

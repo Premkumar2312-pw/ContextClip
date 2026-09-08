@@ -93,6 +93,24 @@ public class ClipboardAgentApplication {
                 uninstallStartup();
                 return true;
             }
+            case "--pair" -> {
+                if (args.length < 2 || args[1].isBlank()) {
+                    System.err.println("Usage: --pair <PAIRING_CODE_OR_URI>");
+                    return true;
+                }
+                String uriOrCode = args[1].trim();
+                AgentConfig cfg = AgentConfig.load();
+                PairingHandler handler = new PairingHandler();
+                System.out.println("Processing pairing request...");
+                PairingHandler.PairingResult result = handler.handlePairing(uriOrCode, cfg.getEndpointUrl());
+                if (result.success()) {
+                    System.out.println("SUCCESS: " + result.message());
+                    System.out.println("Agent configured successfully at: " + AgentConfig.getUserConfigFile().getAbsolutePath());
+                } else {
+                    System.err.println("ERROR: " + result.message());
+                }
+                return true;
+            }
             case "--set-token" -> {
                 if (args.length < 2 || args[1].isBlank()) {
                     System.err.println("Usage: --set-token <AGENT_TOKEN>");
@@ -115,6 +133,18 @@ public class ClipboardAgentApplication {
                 return true;
             }
             default -> {
+                if (args[0].startsWith("contextclip://") || args[0].startsWith("pair_")) {
+                    AgentConfig cfg = AgentConfig.load();
+                    PairingHandler handler = new PairingHandler();
+                    System.out.println("Processing pairing protocol URI...");
+                    PairingHandler.PairingResult result = handler.handlePairing(args[0], cfg.getEndpointUrl());
+                    if (result.success()) {
+                        System.out.println("SUCCESS: " + result.message());
+                    } else {
+                        System.err.println("ERROR: " + result.message());
+                    }
+                    return true;
+                }
                 return false;
             }
         }
