@@ -6,15 +6,15 @@ The ContextClip Desktop Agent is a lightweight Java-based clipboard capture util
 
 ## 1. Architecture Overview
 
-`
+```text
                   +-------------------------------+
-                  |      Operating System         |
-                  |       Windows Clipboard       |
+                  |       Operating System        |
+                  |        Windows Clipboard      |
                   +---------------+---------------+
                                   | AWT FlavorListener
                                   v
                     +---------------------------+
-                    |    ClipboardMonitor       |
+                    |     ClipboardMonitor      |
                     | (Pause/Resume/OS Debounce)|
                     +-------------+-------------+
                                   | New Text Detected
@@ -27,7 +27,7 @@ The ContextClip Desktop Agent is a lightweight Java-based clipboard capture util
                  +----------------+----------------+
                  v                                 v
     +--------------------------+    +-------------------------+
-    |       TrayManager        |    |      BackendClient      |
+    |        TrayManager       |    |      BackendClient      |
     |  - System Tray Icon      |    |  - Personal JWT Auth    |
     |  - Status Display        |    |  - Offline Buffer (100) |
     |  - Pause / Resume        |    |  - Reconnect Auto-Flush |
@@ -37,8 +37,9 @@ The ContextClip Desktop Agent is a lightweight Java-based clipboard capture util
                                                   v
                                     +-------------------------+
                                     |    ContextClip Backend  |
-                                    |  POST /api/clipboard    |
+                                    |   POST /api/clipboard   |
                                     +-------------------------+
+```
 `
 
 ### Core Components
@@ -58,7 +59,8 @@ The MVP architecture uses CLI-based token pairing.
 1. **Obtain Personal Token**:
    - The user logs in to ContextClip via browser.
    - Navigate to the **Connect Desktop** / Pairing page (/dashboard/pairing).
-   - Copy the generated AGENT_TOKEN (a user-scoped JWT with ole=AGENT).
+   - Copy the generated AGENT_TOKEN (a user-scoped JWT with 
+ole=AGENT).
 
 2. **Save Token to Desktop Configuration**:
    `ash
@@ -129,4 +131,5 @@ The desktop agent evaluates configuration in the following order:
    - Captured clipboard text content is **never** logged to console/logs. Only content length and backend IDs are reported.
 3. **Multi-Tenant User Isolation**:
    - All backend ingestion calls are scoped to the authenticated user owning the AGENT_TOKEN.
-   - The backend validates that ole=AGENT is present and maps clips exclusively to the token subject.
+   - The backend validates that 
+ole=AGENT is present and maps clips exclusively to the token subject.
