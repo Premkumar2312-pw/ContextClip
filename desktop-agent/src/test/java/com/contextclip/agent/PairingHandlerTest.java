@@ -63,8 +63,13 @@ class PairingHandlerTest {
     @Test
     void testExtractCode() {
         assertEquals("pair_12345", PairingHandler.extractCode("pair_12345"));
+        assertEquals("pair_12345", PairingHandler.extractCode("\"pair_12345\""));
         assertEquals("pair_abc_xyz", PairingHandler.extractCode("contextclip://pair?code=pair_abc_xyz"));
+        assertEquals("pair_abc_xyz", PairingHandler.extractCode("contextclip://pair/?code=pair_abc_xyz"));
+        assertEquals("pair_abc_xyz", PairingHandler.extractCode("\"contextclip://pair/?code=pair_abc_xyz\""));
         assertEquals("pair_abc_xyz", PairingHandler.extractCode("contextclip://pair?code=pair_abc_xyz&extra=1"));
+        assertEquals("pair_abc_xyz", PairingHandler.extractCode("contextclip://pair/?code=pair_abc_xyz&extra=1"));
+        assertEquals("pair_abc_xyz", PairingHandler.extractCode("contextclip://pair/?code=pair_abc_xyz#section"));
         assertNull(PairingHandler.extractCode(null));
         assertNull(PairingHandler.extractCode("   "));
     }

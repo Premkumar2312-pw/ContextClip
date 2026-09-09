@@ -66,15 +66,17 @@ This flow enables seamless pairing directly from the web dashboard:
    - The browser dispatches contextclip://pair?code=pair_....
 4. **Desktop Agent Exchange**:
    - When launched or invoked with contextclip://pair?code=... (or CLI java -jar desktop-agent.jar --pair <URI_or_code>), PairingHandler exchanges the code with POST /api/agent/pairing/exchange.
-   - The backend atomically consumes the code (enforcing single-use) and returns a user-scoped ole=AGENT token.
+   - The backend atomically consumes the code (enforcing single-use) and returns a user-scoped ole=AGENT token.
 5. **Secure Persistence & Monitoring**:
    - The agent writes the token into ~/.contextclip/agent.properties and enters the CONNECTED state.
 
-> **Note on Windows Protocol Registration**:
-> In Phase 14, the core application pairing logic and protocol handler interfaces are fully implemented and verified. Permanent Windows registry association of the contextclip:// URL protocol is intentionally deferred to the future Windows installer (MSI/EXE). For testing and development, the agent supports:
-> `ash
+> **Phase 15 — Windows Installer & Protocol Registration (Complete)**:
+> The `contextclip://` URI protocol is now registered with Windows by the commercial installer (`installer/ContextClipDesktopSetup.exe`). When a user clicks **Connect Desktop** in the browser, Windows dispatches `contextclip://pair?code=pair_...` directly to the installed Desktop Agent via the registered protocol handler. See [`docs/WINDOWS_INSTALLER.md`](../docs/WINDOWS_INSTALLER.md) for the full architecture.
+>
+> For development and testing without the installer, the CLI fallback remains fully supported:
+> ```bash
 > java -jar target/desktop-agent-0.0.1-SNAPSHOT.jar --pair "contextclip://pair?code=pair_..."
-> `
+> ```
 
 ---
 

@@ -71,6 +71,8 @@ venv.bak/
 # Desktop Agent Build Artifacts
 desktop-agent/dist/
 desktop-agent/build/
+installer/output/
+installer/dist/
 
 # Docker
 .docker/

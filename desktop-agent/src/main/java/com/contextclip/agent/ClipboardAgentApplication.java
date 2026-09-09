@@ -78,8 +78,20 @@ public class ClipboardAgentApplication {
         }
     }
 
+    private static String cleanQuotes(String s) {
+        if (s == null || s.isBlank()) return s;
+        String trimmed = s.trim();
+        while ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+               (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            if (trimmed.length() < 2) break;
+            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+        }
+        return trimmed;
+    }
+
     private static boolean handleCommandLineArgs(String[] args) {
-        String command = args[0].toLowerCase();
+        String firstArg = cleanQuotes(args[0]);
+        String command = firstArg.toLowerCase();
         switch (command) {
             case "--diagnose-auth" -> {
                 diagnoseAuth();
@@ -98,7 +110,7 @@ public class ClipboardAgentApplication {
                     System.err.println("Usage: --pair <PAIRING_CODE_OR_URI>");
                     return true;
                 }
-                String uriOrCode = args[1].trim();
+                String uriOrCode = cleanQuotes(args[1]);
                 AgentConfig cfg = AgentConfig.load();
                 PairingHandler handler = new PairingHandler();
                 System.out.println("Processing pairing request...");
@@ -133,17 +145,20 @@ public class ClipboardAgentApplication {
                 return true;
             }
             default -> {
-                if (args[0].startsWith("contextclip://") || args[0].startsWith("pair_")) {
+                if (firstArg.startsWith("contextclip://") || firstArg.startsWith("pair_")) {
                     AgentConfig cfg = AgentConfig.load();
                     PairingHandler handler = new PairingHandler();
                     System.out.println("Processing pairing protocol URI...");
-                    PairingHandler.PairingResult result = handler.handlePairing(args[0], cfg.getEndpointUrl());
+                    PairingHandler.PairingResult result = handler.handlePairing(firstArg, cfg.getEndpointUrl());
                     if (result.success()) {
                         System.out.println("SUCCESS: " + result.message());
+                        System.out.println("Agent paired successfully. Starting clipboard monitoring...");
+                        // Return false so main() proceeds to validateConfig, initialize tray, and start monitoring
+                        return false;
                     } else {
                         System.err.println("ERROR: " + result.message());
+                        return true;
                     }
-                    return true;
                 }
                 return false;
             }

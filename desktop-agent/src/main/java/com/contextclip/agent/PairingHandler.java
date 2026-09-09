@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  */
 public class PairingHandler {
 
-    private static final Pattern CODE_PARAM_PATTERN = Pattern.compile("code=([^&\\s]+)");
+    private static final Pattern CODE_PARAM_PATTERN = Pattern.compile("code=([^&\\s\"'#]+)");
     private static final Pattern TOKEN_JSON_PATTERN = Pattern.compile("\"token\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern USERNAME_JSON_PATTERN = Pattern.compile("\"username\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -36,19 +36,33 @@ public class PairingHandler {
 
     /**
      * Extracts the pairing code from either a contextclip:// URI or a raw code string.
+     * Handles Windows URI protocol normalization (e.g. contextclip://pair/?code=...)
+     * and quoted arguments.
      */
     public static String extractCode(String uriOrCode) {
         if (uriOrCode == null || uriOrCode.isBlank()) {
             return null;
         }
         String trimmed = uriOrCode.trim();
+        while ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+               (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            if (trimmed.length() < 2) break;
+            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+        }
         if (trimmed.startsWith("contextclip://") || trimmed.contains("code=")) {
             Matcher matcher = CODE_PARAM_PATTERN.matcher(trimmed);
             if (matcher.find()) {
-                return matcher.group(1);
+                String code = matcher.group(1);
+                while (code.endsWith("\"") || code.endsWith("'") || code.endsWith("/")) {
+                    code = code.substring(0, code.length() - 1);
+                }
+                return code;
             }
         }
         // Fallback: direct code passed
+        while (trimmed.endsWith("\"") || trimmed.endsWith("'") || trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
         return trimmed;
     }
 
