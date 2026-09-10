@@ -2,12 +2,25 @@ package com.contextclip.agent;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Entry point for the ContextClip Desktop Agent.
  * Integrates automatic monitoring, Windows System Tray, pause/resume lifecycle,
- * and Windows Startup automation.
+ * Windows Startup automation, and Phase 16 single-instance enforcement via IPC.
+ *
+ * <h2>Single-instance flow</h2>
+ * <ol>
+ *   <li>On startup, attempt to acquire the InstanceLock (bind IPC port 57324).</li>
+ *   <li>If the port is already bound (SECONDARY): forward the command to the primary
+ *       instance over TCP loopback, then exit immediately — no tray, no monitor.</li>
+ *   <li>If the port is free (PRIMARY): start the IPC server, proceed with full
+ *       initialization (tray, clipboard monitor, backend client).</li>
+ * </ol>
  */
 public class ClipboardAgentApplication {
 
@@ -16,9 +29,67 @@ public class ClipboardAgentApplication {
     private static ClipboardMonitor clipboardMonitor;
     private static TrayManager trayManager;
 
+    /** Bounded queue decoupling clipboard capture from HTTP transmission. */
+    private static final BlockingQueue<String> uploadQueue = new LinkedBlockingQueue<>(100);
+    private static final AtomicBoolean uploaderRunning = new AtomicBoolean(false);
+    private static Thread uploaderThread;
+
+    /** Single-instance lock — released on shutdown. */
+    private static final InstanceLock instanceLock = new InstanceLock();
+
     public static void main(String[] args) {
+        // Disable broken / missing Java Access Bridge assistive technologies to prevent AWTError
+        try {
+            if (System.getProperty("javax.accessibility.assistive_technologies") == null) {
+                System.setProperty("javax.accessibility.assistive_technologies", "");
+            }
+        } catch (Throwable ignored) {
+        }
+
+        // Install default uncaught exception handler to capture unhandled errors in agent.log
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            AgentLogger.error("Uncaught exception on thread " + t.getName() + ": " + e.getMessage(), e);
+        });
+
+        AgentLogger.info("=== ContextClip Desktop Agent Startup ===");
+        AgentLogger.info("Java: " + System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ")");
+        AgentLogger.info("Java Home: " + System.getProperty("java.home"));
+        AgentLogger.info("OS: " + System.getProperty("os.name") + " " + System.getProperty("os.version") + " (" + System.getProperty("os.arch") + ")");
+        AgentLogger.info("Working Dir: " + System.getProperty("user.dir"));
+        AgentLogger.info("Log File: " + AgentLogger.getLogFilePath());
+
+        // ----------------------------------------------------------------
+        // Phase 16: Single-instance enforcement
+        // ----------------------------------------------------------------
+        InstanceLock.Role role = instanceLock.tryAcquire();
+
+        if (role == InstanceLock.Role.SECONDARY) {
+            AgentLogger.info("[IPC] Secondary instance detected. Instance lock held by running primary instance.");
+            if (args != null && args.length > 0) {
+                String firstArg = cleanQuotes(args[0]);
+                if (firstArg.startsWith("contextclip://") || firstArg.startsWith("pair_")) {
+                    AgentLogger.info("[IPC] Forwarding pairing request to running primary instance...");
+                    boolean forwarded = instanceLock.forwardToExistingInstance(firstArg);
+                    if (!forwarded) {
+                        AgentLogger.error("[IPC] Could not forward pairing request to running primary instance.");
+                    } else {
+                        AgentLogger.info("[IPC] Successfully forwarded pairing request.");
+                    }
+                } else {
+                    AgentLogger.info("[IPC] Desktop Agent is already running. Managed via system tray.");
+                }
+            } else {
+                AgentLogger.info("[IPC] Desktop Agent is already running. Managed via system tray.");
+            }
+            return;
+        }
+
+        AgentLogger.info("[IPC] Primary instance role acquired. Initializing Desktop Agent services...");
+
+        // PRIMARY: handle CLI args before proceeding to normal startup
         if (args != null && args.length > 0) {
             if (handleCommandLineArgs(args)) {
+                instanceLock.release();
                 return;
             }
         }
@@ -27,56 +98,121 @@ public class ClipboardAgentApplication {
 
         AgentConfig config = AgentConfig.load();
         if (!validateConfig(config)) {
+            AgentLogger.warn("Configuration validation failed. Desktop Agent exiting.");
+            instanceLock.release();
             return;
         }
 
         backendClient = new BackendClient(config);
 
-        // Initialize ClipboardMonitor
-        clipboardMonitor = new ClipboardMonitor(ClipboardAgentApplication::handleClipboardContent);
-
-        // Initialize TrayManager
-        trayManager = new TrayManager(
-            paused -> {
-                if (paused) {
-                    clipboardMonitor.pause();
-                    System.out.println("Clipboard monitoring paused.");
-                } else {
-                    clipboardMonitor.resume();
-                    System.out.println("Clipboard monitoring resumed.");
+        // Initialize TrayManager first so tray icon appears immediately on primary startup
+        try {
+            trayManager = new TrayManager(
+                paused -> {
+                    if (paused) {
+                        if (clipboardMonitor != null) {
+                            clipboardMonitor.pause();
+                        }
+                        AgentLogger.info("Clipboard monitoring paused.");
+                    } else {
+                        if (clipboardMonitor != null) {
+                            clipboardMonitor.resume();
+                        }
+                        AgentLogger.info("Clipboard monitoring resumed.");
+                    }
+                },
+                () -> {
+                    AgentLogger.info("Exit requested from System Tray.");
+                    shutdown();
+                    System.exit(0);
                 }
-            },
-            () -> {
-                System.out.println("Exit requested from System Tray.");
-                shutdown();
-                System.exit(0);
-            }
-        );
-        trayManager.initialize();
+            );
+            trayManager.initialize();
+        } catch (Throwable t) {
+            AgentLogger.error("Failed to initialize System Tray: " + t.getMessage(), t);
+        }
+
+        // Initialize ClipboardMonitor safely
+        try {
+            clipboardMonitor = new ClipboardMonitor(ClipboardAgentApplication::handleClipboardContent);
+        } catch (Throwable t) {
+            AgentLogger.error("Failed to initialize ClipboardMonitor: " + t.getMessage(), t);
+        }
+
+        // Phase 16: Start IPC server so secondary instances can forward commands
+        instanceLock.startIpcServer(ClipboardAgentApplication::handleIpcPairingRequest);
 
         // Register shutdown hook for graceful exit
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             shutdown();
-            System.out.println("=================================");
-            System.out.println("Clipboard monitoring stopped.");
-            System.out.println("Goodbye!");
-            System.out.println("=================================");
+            AgentLogger.info("=================================");
+            AgentLogger.info("Clipboard monitoring stopped.");
+            AgentLogger.info("Goodbye!");
+            AgentLogger.info("=================================");
         }));
 
         try {
-            clipboardMonitor.start();
-            trayManager.updateStatus(ConnectionStatus.CONNECTED);
+            uploaderRunning.set(true);
+            uploaderThread = new Thread(ClipboardAgentApplication::processUploadQueue, "contextclip-uploader");
+            uploaderThread.setDaemon(true);
+            uploaderThread.start();
+            AgentLogger.info("Background upload worker thread started.");
+
+            if (clipboardMonitor != null) {
+                clipboardMonitor.start();
+                AgentLogger.info("Clipboard monitoring active.");
+            }
+            if (trayManager != null) {
+                trayManager.updateStatus(ConnectionStatus.CONNECTED);
+            }
             // Block main thread until shutdown signal
             KEEP_ALIVE_LATCH.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            System.err.println("Failed to start clipboard agent: " + e.getMessage());
-            e.printStackTrace();
+            AgentLogger.error("Failed to start clipboard agent: " + e.getMessage(), e);
         } finally {
             shutdown();
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Phase 16: IPC pairing handler (called on the IPC thread for primary)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Called by the IPC server when the running primary receives a PAIR command
+     * forwarded from a secondary process.
+     * Performs the pairing exchange, saves the new token, and refreshes the backend client.
+     */
+    static void handleIpcPairingRequest(String uri) {
+        System.out.println("[IPC] Processing pairing request from secondary instance...");
+        AgentConfig cfg = AgentConfig.load();
+        PairingHandler handler = new PairingHandler();
+        PairingHandler.PairingResult result = handler.handlePairing(uri, cfg.getEndpointUrl());
+        if (result.success()) {
+            System.out.println("[IPC] Pairing succeeded for user: " + result.username());
+            // Reload configuration and refresh the backend client with the new token
+            AgentConfig freshConfig = AgentConfig.load();
+            if (backendClient != null) {
+                backendClient = new BackendClient(freshConfig);
+                System.out.println("[IPC] Backend client refreshed with new AGENT token.");
+            }
+            if (trayManager != null) {
+                trayManager.updateStatus(ConnectionStatus.CONNECTED);
+            }
+            System.out.println("[IPC] Agent is now CONNECTED. Clipboard monitoring continues.");
+        } else {
+            System.err.println("[IPC] Pairing failed: " + result.message());
+            if (trayManager != null) {
+                trayManager.updateStatus(ConnectionStatus.UNAUTHORIZED);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Utility
+    // -------------------------------------------------------------------------
 
     private static String cleanQuotes(String s) {
         if (s == null || s.isBlank()) return s;
@@ -89,6 +225,12 @@ public class ClipboardAgentApplication {
         return trimmed;
     }
 
+    /**
+     * Handles explicit CLI commands (--diagnose-auth, --pair, etc.).
+     *
+     * @return true if the process should exit after handling the command,
+     *         false if normal monitoring startup should proceed.
+     */
     private static boolean handleCommandLineArgs(String[] args) {
         String firstArg = cleanQuotes(args[0]);
         String command = firstArg.toLowerCase();
@@ -145,6 +287,10 @@ public class ClipboardAgentApplication {
                 return true;
             }
             default -> {
+                // Phase 15 direct protocol URI invocation
+                // Phase 16: if a primary is already running (which we checked above),
+                // this path only runs when WE are the primary and started WITH a URI argument.
+                // In that case: pair first, then continue to monitoring.
                 if (firstArg.startsWith("contextclip://") || firstArg.startsWith("pair_")) {
                     AgentConfig cfg = AgentConfig.load();
                     PairingHandler handler = new PairingHandler();
@@ -165,6 +311,10 @@ public class ClipboardAgentApplication {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Diagnostics
+    // -------------------------------------------------------------------------
+
     public static void diagnoseAuth() {
         AgentConfig config = AgentConfig.load();
         String token = config.getAgentToken();
@@ -182,6 +332,10 @@ public class ClipboardAgentApplication {
         System.out.println("=================================================");
     }
 
+    // -------------------------------------------------------------------------
+    // Startup management
+    // -------------------------------------------------------------------------
+
     public static boolean installStartup() {
         String appData = System.getenv("APPDATA");
         if (appData == null || appData.isBlank()) {
@@ -194,8 +348,20 @@ public class ClipboardAgentApplication {
         }
         File startupFile = new File(startupDir, "ContextClipAgent.bat");
         try {
-            String jarPath = new File(ClipboardAgentApplication.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getAbsolutePath();
-            String scriptContent = "@echo off\r\nstart \"\" javaw -jar \"" + jarPath + "\"\r\n";
+            File jarFile = new File(ClipboardAgentApplication.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            File jarDir = jarFile.getParentFile();
+            File launcherCmd = new File(jarDir, "ContextClipLauncher.cmd");
+            File bundledJavaw = new File(jarDir, "runtime\\bin\\javaw.exe");
+
+            String scriptContent;
+            if (launcherCmd.exists()) {
+                scriptContent = "@echo off\r\nstart \"\" \"" + launcherCmd.getAbsolutePath() + "\"\r\n";
+            } else if (bundledJavaw.exists()) {
+                scriptContent = "@echo off\r\nstart \"\" \"" + bundledJavaw.getAbsolutePath() + "\" -jar \"" + jarFile.getAbsolutePath() + "\"\r\n";
+            } else {
+                scriptContent = "@echo off\r\nstart \"\" javaw -jar \"" + jarFile.getAbsolutePath() + "\"\r\n";
+            }
+
             Files.writeString(startupFile.toPath(), scriptContent);
             System.out.println("Windows startup installed successfully: " + startupFile.getAbsolutePath());
             return true;
@@ -218,6 +384,10 @@ public class ClipboardAgentApplication {
         return true;
     }
 
+    // -------------------------------------------------------------------------
+    // Config validation
+    // -------------------------------------------------------------------------
+
     private static boolean validateConfig(AgentConfig config) {
         String token = config.getAgentToken();
         if (token == null || token.isBlank()) {
@@ -228,13 +398,9 @@ public class ClipboardAgentApplication {
             System.err.println();
             System.err.println("To connect the desktop agent to your account:");
             System.err.println("1. Log in to ContextClip in a browser at http://localhost:3000");
-            System.err.println("2. Call POST /api/auth/agent-token with your user JWT to get an agent JWT.");
-            System.err.println("3. Configure the token in one of these ways:");
-            System.err.println("   Option A: Set the AGENT_TOKEN environment variable:");
-            System.err.println("     $env:AGENT_TOKEN=\"<YOUR_PERSONAL_AGENT_TOKEN>\"");
-            System.err.println("   Option B: Save to user config (~/.contextclip/agent.properties):");
-            System.err.println("     java -jar desktop-agent.jar --set-token <YOUR_PERSONAL_AGENT_TOKEN>");
-            System.err.println("4. Restart the desktop agent.");
+            System.err.println("2. Navigate to Connect Agent and click Connect Desktop.");
+            System.err.println("3. The browser will launch contextclip:// automatically.");
+            System.err.println("   Or manually: java -jar desktop-agent.jar --pair <CODE>");
             System.err.println("=================================================================");
             return false;
         }
@@ -250,11 +416,8 @@ public class ClipboardAgentApplication {
             System.err.println("You may have a stale, random, or incorrectly formatted token.");
             System.err.println();
             System.err.println("To get a fresh agent JWT:");
-            System.err.println("1. Log in to ContextClip and obtain your user JWT via POST /api/auth/login.");
-            System.err.println("2. Call POST /api/auth/agent-token with Authorization: Bearer <user-JWT>.");
-            System.err.println("3. Copy the returned token value.");
-            System.err.println("4. Set: $env:AGENT_TOKEN=\"<FRESH_AGENT_JWT>\"");
-            System.err.println("5. Restart the desktop agent.");
+            System.err.println("1. Log in to ContextClip and use Connect Desktop from the dashboard.");
+            System.err.println("2. Or use the CLI fallback: --pair <PAIRING_CODE>");
             System.err.println("=================================================================");
             return false;
         }
@@ -267,6 +430,10 @@ public class ClipboardAgentApplication {
         return true;
     }
 
+    // -------------------------------------------------------------------------
+    // Banner + clipboard callback
+    // -------------------------------------------------------------------------
+
     private static void printBanner() {
         System.out.println("=================================");
         System.out.println("        CONTEXTCLIP AGENT");
@@ -277,7 +444,36 @@ public class ClipboardAgentApplication {
     }
 
     private static void handleClipboardContent(String content) {
-        System.out.println("[Agent] Clipboard changed (" + (content != null ? content.length() : 0) + " chars detected)");
+        if (content == null || content.trim().isEmpty()) {
+            return;
+        }
+        System.out.println("[Agent] Clipboard changed (" + content.length() + " chars detected)");
+        while (!uploadQueue.offer(content)) {
+            // Queue full: discard oldest entry to prevent unbounded buffer
+            uploadQueue.poll();
+        }
+    }
+
+    private static void processUploadQueue() {
+        while (uploaderRunning.get() || !uploadQueue.isEmpty()) {
+            try {
+                String content = uploadQueue.poll(500, TimeUnit.MILLISECONDS);
+                if (content != null) {
+                    uploadClipboardContent(content);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Throwable t) {
+                System.err.println("[Uploader] Unexpected error in upload loop: " + t.getMessage());
+            }
+        }
+    }
+
+    private static void uploadClipboardContent(String content) {
+        if (backendClient == null) {
+            return;
+        }
 
         BackendClient.SendResult result = backendClient.sendClipboardContent(content);
 
@@ -330,13 +526,32 @@ public class ClipboardAgentApplication {
         System.out.flush();
     }
 
+    // -------------------------------------------------------------------------
+    // Shutdown
+    // -------------------------------------------------------------------------
+
     private static synchronized void shutdown() {
+        AgentLogger.info("Shutting down ContextClip Desktop Agent...");
+        uploaderRunning.set(false);
+        if (uploaderThread != null) {
+            uploaderThread.interrupt();
+        }
         if (clipboardMonitor != null) {
-            clipboardMonitor.stop();
+            try {
+                clipboardMonitor.stop();
+            } catch (Throwable t) {
+                AgentLogger.warn("Error stopping clipboard monitor: " + t.getMessage());
+            }
         }
         if (trayManager != null) {
-            trayManager.shutdown();
+            try {
+                trayManager.shutdown();
+            } catch (Throwable t) {
+                AgentLogger.warn("Error shutting down tray manager: " + t.getMessage());
+            }
         }
+        instanceLock.release();
         KEEP_ALIVE_LATCH.countDown();
+        AgentLogger.info("ContextClip Desktop Agent shutdown complete.");
     }
 }

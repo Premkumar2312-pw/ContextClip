@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ClipboardEntry } from '../types/clipboard';
 import { deleteClipboardEntry, explainClipboardEntry, summarizeClipboardEntry } from '../api/clipboardApi';
 import { MarkdownView } from './MarkdownView';
@@ -21,10 +21,20 @@ interface ClipboardItemProps {
 
 export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete }) => {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // AI Explain state
   const [explanation, setExplanation] = useState<string | null>(null);
@@ -38,11 +48,40 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(entry.content);
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      setCopyError(null);
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+        await navigator.clipboard.writeText(entry.content);
+      } else {
+        // Fallback for non-secure context or older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = entry.content;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        textArea.setAttribute('readonly', '');
+        document.body.appendChild(textArea);
+        try {
+          textArea.focus();
+          textArea.select();
+          const success = document.execCommand('copy');
+          if (!success) {
+            throw new Error('Clipboard copy command failed');
+          }
+        } finally {
+          if (textArea.parentNode) {
+            document.body.removeChild(textArea);
+          }
+        }
+      }
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to copy';
+      setCopyError(msg);
+      copyTimeoutRef.current = setTimeout(() => setCopyError(null), 3000);
     }
   };
 
@@ -57,6 +96,7 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
     try {
       await deleteClipboardEntry(entry.id);
       setShowDeleteModal(false);
+      setIsDeleting(false);
       onDelete?.(entry.id);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete clipboard entry.';
@@ -185,9 +225,28 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
             {isDeleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
           </button>
 
-          <button className="btn-copy" onClick={handleCopy} aria-label="Copy snippet">
-            {copied ? <Check size={14} color="#10B981" /> : <Copy size={14} />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
+          <button
+            className={`btn-copy ${copied ? 'copied' : ''} ${copyError ? 'copy-failed' : ''}`}
+            onClick={handleCopy}
+            aria-label="Copy snippet"
+            data-testid={`copy-entry-${entry.id}`}
+          >
+            {copied ? (
+              <>
+                <Check size={14} color="#10B981" />
+                <span>Copied ✓</span>
+              </>
+            ) : copyError ? (
+              <>
+                <X size={14} color="#EF4444" />
+                <span>Copy failed</span>
+              </>
+            ) : (
+              <>
+                <Copy size={14} />
+                <span>Copy</span>
+              </>
+            )}
           </button>
         </div>
       </div>

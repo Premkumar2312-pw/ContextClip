@@ -17,25 +17,36 @@ if not exist "%AGENT_JAR%" (
     exit /b 1
 )
 
-REM Locate the Java runtime (javaw)
-set "JAVA_BIN=javaw"
-if defined JAVA_HOME (
-    if exist "%JAVA_HOME%\bin\javaw.exe" (
-        set "JAVA_BIN=%JAVA_HOME%\bin\javaw.exe"
+REM Locate the Java runtime (prefer bundled runtime first)
+set "JAVA_BIN="
+if exist "%AGENT_DIR%runtime\bin\javaw.exe" (
+    set "JAVA_BIN=%AGENT_DIR%runtime\bin\javaw.exe"
+)
+
+if not defined JAVA_BIN (
+    if defined JAVA_HOME (
+        if exist "%JAVA_HOME%\bin\javaw.exe" (
+            set "JAVA_BIN=%JAVA_HOME%\bin\javaw.exe"
+        )
     )
 )
 
-where "%JAVA_BIN%" >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    if not exist "%JAVA_BIN%" (
-        echo ERROR: Java runtime javaw was not found in PATH or JAVA_HOME.
-        echo Please ensure Java 11 or newer is installed and added to your PATH.
-        pause
-        exit /b 1
+if not defined JAVA_BIN (
+    where javaw >nul 2>nul
+    if %ERRORLEVEL% equ 0 (
+        set "JAVA_BIN=javaw"
     )
+)
+
+if not defined JAVA_BIN (
+    echo ERROR: ContextClip Java runtime was not found.
+    echo Bundled runtime is missing and no system Java was found.
+    echo Please reinstall ContextClip Desktop from https://contextclip.app
+    pause
+    exit /b 1
 )
 
 REM Launch without a persistent console window using javaw.
 REM When launched with contextclip://, the agent pairs with the backend and transitions
 REM smoothly into the background System Tray monitoring state.
-start "" /d "%AGENT_DIR%" "%JAVA_BIN%" -jar "%AGENT_JAR%" %*
+start "" /d "%AGENT_DIR%" "%JAVA_BIN%" -Djavax.accessibility.assistive_technologies= -jar "%AGENT_JAR%" %*

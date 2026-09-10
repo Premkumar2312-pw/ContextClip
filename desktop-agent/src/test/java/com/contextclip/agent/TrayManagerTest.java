@@ -20,6 +20,13 @@ class TrayManagerTest {
         trayManager = new TrayManager(pauseToggleValue::set, () -> exitCalled.set(true));
     }
 
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        if (trayManager != null) {
+            trayManager.shutdown();
+        }
+    }
+
     @Test
     void testInitialState() {
         assertFalse(trayManager.isPaused(), "Initial isPaused must be false");
@@ -82,6 +89,45 @@ class TrayManagerTest {
         // Resume restores the previous operational status
         trayManager.setPausedState(false);
         assertEquals(ConnectionStatus.RATE_LIMITED, trayManager.getCurrentStatus());
+    }
+
+    @Test
+    void testCreateTrayImageGeneratesValid32x32Image() {
+        java.awt.Image image = TrayManager.createTrayImage(ConnectionStatus.CONNECTED);
+        assertNotNull(image, "Tray image must not be null");
+        assertEquals(32, image.getWidth(null), "Tray image width must be 32");
+        assertEquals(32, image.getHeight(null), "Tray image height must be 32");
+    }
+
+    @Test
+    void testCreateTrayImageHandlesAllConnectionStatuses() {
+        for (ConnectionStatus status : ConnectionStatus.values()) {
+            java.awt.Image img = TrayManager.createTrayImage(status);
+            assertNotNull(img, "Image for status " + status + " must not be null");
+            assertEquals(32, img.getWidth(null));
+            assertEquals(32, img.getHeight(null));
+        }
+    }
+
+    @Test
+    void testAgentLoggerFunctionsSafelyWithoutExceptions() {
+        assertDoesNotThrow(() -> {
+            AgentLogger.info("Test info message");
+            AgentLogger.debug("Test debug message");
+            AgentLogger.warn("Test warn message");
+            AgentLogger.error("Test error message", new RuntimeException("Test exception"));
+            assertNotNull(AgentLogger.getLogFilePath());
+        });
+    }
+
+    @Test
+    void testInitializeSafeInAnyEnvironment() {
+        // Must return true or false cleanly without throwing unhandled exceptions
+        assertDoesNotThrow(() -> {
+            boolean result = trayManager.initialize();
+            // result is true in desktop UI, false in headless
+            assertEquals(result, trayManager.isTraySupported());
+        });
     }
 }
 

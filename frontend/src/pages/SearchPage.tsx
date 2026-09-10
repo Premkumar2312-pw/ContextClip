@@ -97,6 +97,10 @@ export const SearchPage: React.FC = () => {
     params.q || params.type || params.technology || params.category
   );
 
+  const handleDeleteEntry = (id: number) => {
+    setResults((prev) => prev.filter((entry) => entry.id !== id));
+  };
+
   return (
     <div className="main-wrapper">
       <header className="top-header">
@@ -161,7 +165,7 @@ export const SearchPage: React.FC = () => {
                 className="filter-select"
                 value={params.type || ''}
                 onChange={(e) => handleFilterChange('type', e.target.value)}
-                aria-label="Filter by Type"
+                aria-label="Filter by type"
               >
                 <option value="">All Types</option>
                 {TYPE_OPTIONS.map((t) => (
@@ -181,12 +185,12 @@ export const SearchPage: React.FC = () => {
                 className="filter-select"
                 value={params.technology || ''}
                 onChange={(e) => handleFilterChange('technology', e.target.value)}
-                aria-label="Filter by Technology"
+                aria-label="Filter by technology"
               >
                 <option value="">All Technologies</option>
-                {TECH_OPTIONS.map((tech) => (
-                  <option key={tech} value={tech}>
-                    {tech}
+                {TECH_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
                   </option>
                 ))}
               </select>
@@ -201,12 +205,12 @@ export const SearchPage: React.FC = () => {
                 className="filter-select"
                 value={params.category || ''}
                 onChange={(e) => handleFilterChange('category', e.target.value)}
-                aria-label="Filter by Category"
+                aria-label="Filter by category"
               >
                 <option value="">All Categories</option>
-                {CATEGORY_OPTIONS.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
                   </option>
                 ))}
               </select>
@@ -215,12 +219,12 @@ export const SearchPage: React.FC = () => {
             {hasActiveFilters && (
               <button
                 type="button"
-                className="btn-clear-filters"
+                className="btn-secondary btn-clear-filters"
                 onClick={handleClearFilters}
-                aria-label="Clear all filters"
+                aria-label="Reset filters"
               >
-                <RotateCcw size={12} style={{ display: 'inline', marginRight: 4 }} />
-                Clear filters
+                <RotateCcw size={14} style={{ display: 'inline', marginRight: 4 }} />
+                <span>Reset</span>
               </button>
             )}
           </div>
@@ -228,14 +232,19 @@ export const SearchPage: React.FC = () => {
 
         {/* Results Area */}
         {loading && (
-          <div aria-label="Searching clipboard entries">
+          <div aria-label="Loading search results">
             <div className="skeleton skeleton-row" />
             <div className="skeleton skeleton-row" />
           </div>
         )}
 
-        {error && !loading && (
-          <ErrorState message={error} onRetry={() => executeSearch(params)} />
+        {error && (
+          <ErrorState
+            title="Unable to Search Clipboard"
+            message={error}
+            onRetry={() => executeSearch(params)}
+            retryLabel="Retry Search"
+          />
         )}
 
         {!loading && !error && hasSearched && results.length === 0 && (
@@ -267,7 +276,7 @@ export const SearchPage: React.FC = () => {
               </span>
             </div>
             {results.map((entry) => (
-              <ClipboardItem key={entry.id} entry={entry} />
+              <ClipboardItem key={entry.id} entry={entry} onDelete={handleDeleteEntry} />
             ))}
           </div>
         )}

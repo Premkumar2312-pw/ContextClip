@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   MessageSquare,
   RotateCcw,
@@ -9,8 +9,10 @@ import {
   Check,
 } from 'lucide-react';
 import { askClipboard, getClipboardEntries } from '../api/clipboardApi';
-import { ClipboardAskResponse, ClipboardEntry } from '../types/clipboard';
+import { ClipboardEntry } from '../types/clipboard';
 import { MarkdownView } from '../components/MarkdownView';
+
+import { useAskClipboard } from '../context/AskClipboardContext';
 
 const MAX_QUESTION_LENGTH = 2000;
 
@@ -25,32 +27,55 @@ interface AskClipboardPageProps {
   onNavigateToClipboard?: (entryId?: number) => void;
 }
 
-type AskState = 'idle' | 'loading' | 'success' | 'error';
-
 export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
   onNavigateToClipboard,
 }) => {
-  const [question, setQuestion] = useState('');
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [state, setState] = useState<AskState>('idle');
-  const [result, setResult] = useState<ClipboardAskResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [entries, setEntries] = useState<ClipboardEntry[]>([]);
-  const [entriesLoaded, setEntriesLoaded] = useState(false);
-  const [copiedAnswer, setCopiedAnswer] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const {
+    question,
+    setQuestion,
+    validationError,
+    setValidationError,
+    state,
+    setState,
+    result,
+    setResult,
+    errorMessage,
+    setErrorMessage,
+    copiedAnswer,
+    setCopiedAnswer,
+    historyEntries,
+    setHistoryEntries,
+    entriesLoaded,
+    setEntriesLoaded,
+    clearAskState,
+  } = useAskClipboard();
 
-  // Load clipboard entries once for source detail lookup
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load clipboard entries once or refresh silently in background without resetting session
   useEffect(() => {
+    let isMounted = true;
     getClipboardEntries()
       .then((data) => {
-        setEntries(data);
-        setEntriesLoaded(true);
+        if (isMounted) {
+          setHistoryEntries(data);
+          setEntriesLoaded(true);
+        }
       })
       .catch(() => {
-        setEntriesLoaded(true); // still allow ask even if we can't load entries
+        if (isMounted) {
+          setEntriesLoaded(true); // still allow ask even if we can't load entries
+        }
       });
-  }, []);
+
+    return () => {
+      isMounted = false;
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, [setEntriesLoaded, setHistoryEntries]);
 
   const validate = (q: string): string | null => {
     if (!q.trim()) return 'Please enter a question.';
@@ -91,23 +116,40 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
   };
 
   const handleClear = () => {
-    setQuestion('');
-    setResult(null);
-    setState('idle');
-    setErrorMessage(null);
-    setValidationError(null);
-    setCopiedAnswer(false);
+    clearAskState();
     textareaRef.current?.focus();
   };
 
   const handleCopyAnswer = async () => {
     if (!result?.answer) return;
     try {
-      await navigator.clipboard.writeText(result.answer);
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+        await navigator.clipboard.writeText(result.answer);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = result.answer;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        textArea.setAttribute('readonly', '');
+        document.body.appendChild(textArea);
+        try {
+          textArea.focus();
+          textArea.select();
+          document.execCommand('copy');
+        } finally {
+          if (textArea.parentNode) {
+            document.body.removeChild(textArea);
+          }
+        }
+      }
       setCopiedAnswer(true);
-      setTimeout(() => setCopiedAnswer(false), 2000);
+      copyTimeoutRef.current = setTimeout(() => setCopiedAnswer(false), 2000);
     } catch {
-      // fallback
+      // fallback failed
     }
   };
 
@@ -118,13 +160,14 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
   };
 
   const getSourceEntry = (id: number): ClipboardEntry | undefined =>
-    entries.find((e) => e.id === id);
+    historyEntries.find((e) => e.id === id);
 
   const truncate = (text: string, max = 60): string =>
     text.length <= max ? text : text.slice(0, max).trimEnd() + '…';
 
-  const hasEntries = entriesLoaded && entries.length > 0;
-  const noHistory = entriesLoaded && entries.length === 0;
+  const hasActiveSession = Boolean(result || question.trim() || state === 'loading' || state === 'error');
+  const hasEntries = entriesLoaded && historyEntries.length > 0;
+  const noHistory = entriesLoaded && historyEntries.length === 0 && !hasActiveSession;
 
   return (
     <div className="main-wrapper">

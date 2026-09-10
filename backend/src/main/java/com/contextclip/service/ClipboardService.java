@@ -26,6 +26,7 @@ public class ClipboardService {
 
     public static final int MAX_ASK_ENTRIES = 10;
     public static final int MAX_QUESTION_LENGTH = 2000;
+    public static final int MAX_CLIPBOARD_CONTENT_LENGTH = 100_000;
 
     private static final Set<String> STOP_WORDS = Set.of(
             "a", "about", "all", "an", "and", "any", "are", "as", "at", "be", "been",
@@ -325,6 +326,9 @@ public class ClipboardService {
 
     @Transactional
     public void delete(Long id) {
+        if (!clipboardRepository.existsById(id)) {
+            throw new NoSuchElementException("Clipboard entry with ID " + id + " not found");
+        }
         clipboardRepository.deleteById(id);
     }
 

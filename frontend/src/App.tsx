@@ -10,6 +10,8 @@ import { AgentPairingPage } from './pages/AgentPairingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 
+import { AskClipboardProvider } from './context/AskClipboardContext';
+
 type AuthRoute = 'login' | 'register';
 
 const MainAppContent: React.FC = () => {
@@ -75,7 +77,9 @@ const MainAppContent: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <AuthProvider>
-      <MainAppContent />
+      <AskClipboardProvider>
+        <MainAppContent />
+      </AskClipboardProvider>
     </AuthProvider>
   );
 };

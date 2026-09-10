@@ -44,7 +44,12 @@ export const AgentPairingPage: React.FC = () => {
 
       // Attempt to launch desktop application via protocol handler
       try {
-        if (typeof window !== 'undefined' && window.location) {
+        const isTestEnv =
+          (typeof globalThis !== 'undefined' &&
+            (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env?.NODE_ENV === 'test') ||
+          (typeof import.meta !== 'undefined' &&
+            (import.meta as { env?: { MODE?: string } }).env?.MODE === 'test');
+        if (!isTestEnv && typeof window !== 'undefined' && window.location) {
           window.location.assign(res.pairUrl);
         }
       } catch {

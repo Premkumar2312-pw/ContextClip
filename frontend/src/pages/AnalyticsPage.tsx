@@ -32,7 +32,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigateToClipbo
       <main className="content-container">
         {loading && !data && <LoadingSkeleton />}
 
-        {error && !data && <ErrorState message={error} onRetry={refresh} />}
+        {error && !data && (
+          <ErrorState
+            title="Analytics Unavailable"
+            message={error}
+            onRetry={refresh}
+            retryLabel="Retry"
+          />
+        )}
 
         {data && isEmpty && (
           <EmptyState

@@ -68,6 +68,8 @@ Name: "startup"; Description: "Start ContextClip Desktop Agent automatically whe
 Source: "dist\{#JarName}"; DestDir: "{app}"; Flags: ignoreversion
 ; Launcher script — registered as the contextclip:// protocol handler
 Source: "ContextClipLauncher.cmd"; DestDir: "{app}"; Flags: ignoreversion
+; Bundled Java Runtime — private, zero external Java dependency
+Source: "dist\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Registry]
 ; =====================================================================
@@ -127,12 +129,12 @@ end;
 procedure WriteStartupEntry;
 var
   StartupFile, Content: string;
-  AgentJar: string;
+  LauncherCmd: string;
 begin
   StartupFile := GetStartupFile;
-  AgentJar    := ExpandConstant('{app}\{#JarName}');
+  LauncherCmd := ExpandConstant('{app}\{#AppExeName}');
   Content     := '@echo off' + #13#10 +
-                 'start "" javaw -jar "' + AgentJar + '"' + #13#10;
+                 'start "" "' + LauncherCmd + '"' + #13#10;
   SaveStringToFile(StartupFile, Content, False);
 end;
 

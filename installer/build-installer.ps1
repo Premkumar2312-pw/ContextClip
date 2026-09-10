@@ -33,6 +33,7 @@
 [CmdletBinding()]
 param(
     [switch]$SkipJarBuild,
+    [switch]$SkipRuntimeBuild,
     [switch]$SkipInnoSetup
 )
 
@@ -41,28 +42,29 @@ $ErrorActionPreference = 'Stop'
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-$ScriptDir     = $PSScriptRoot
-$RepoRoot      = Split-Path $ScriptDir -Parent
-$AgentDir      = Join-Path $RepoRoot "desktop-agent"
-$JarName       = "desktop-agent-0.0.1-SNAPSHOT.jar"
-$JarSourcePath = Join-Path $AgentDir "target\$JarName"
-$DistDir       = Join-Path $ScriptDir "dist"
-$JarDestPath   = Join-Path $DistDir $JarName
-$IssFile       = Join-Path $ScriptDir "ContextClipDesktop.iss"
-$OutputDir     = Join-Path $ScriptDir "output"
+$ScriptDir       = $PSScriptRoot
+$RepoRoot        = Split-Path $ScriptDir -Parent
+$AgentDir        = Join-Path $RepoRoot "desktop-agent"
+$JarName         = "desktop-agent-0.0.1-SNAPSHOT.jar"
+$JarSourcePath   = Join-Path $AgentDir "target\$JarName"
+$DistDir         = Join-Path $ScriptDir "dist"
+$JarDestPath     = Join-Path $DistDir $JarName
+$RuntimeDestPath = Join-Path $DistDir "runtime"
+$IssFile         = Join-Path $ScriptDir "ContextClipDesktop.iss"
+$OutputDir       = Join-Path $ScriptDir "output"
 
 # ─── Banner ───────────────────────────────────────────────────────────────────
 
 Write-Host ""
 Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "  ContextClip Desktop Installer Builder - Phase 15  " -ForegroundColor Cyan
+Write-Host "  ContextClip Desktop Installer Builder - Phase 17  " -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host ""
 
 # --- Step 1: Build Desktop Agent JAR -----------------------------------------
 
 if (-not $SkipJarBuild) {
-    Write-Host "[1/3] Building Desktop Agent shaded JAR..." -ForegroundColor Yellow
+    Write-Host "[1/4] Building Desktop Agent shaded JAR..." -ForegroundColor Yellow
 
     $mavenCmd = Get-Command mvn -ErrorAction SilentlyContinue
     if (-not $mavenCmd) {
@@ -83,12 +85,12 @@ if (-not $SkipJarBuild) {
 
     Write-Host "    JAR built successfully." -ForegroundColor Green
 } else {
-    Write-Host "[1/3] Skipping JAR build (-SkipJarBuild specified)." -ForegroundColor DarkGray
+    Write-Host "[1/4] Skipping JAR build (-SkipJarBuild specified)." -ForegroundColor DarkGray
 }
 
 # --- Step 2: Copy JAR to dist/ -----------------------------------------------
 
-Write-Host "[2/3] Copying JAR to installer\dist\..." -ForegroundColor Yellow
+Write-Host "[2/4] Copying JAR to installer\dist\..." -ForegroundColor Yellow
 
 if (-not (Test-Path $JarSourcePath)) {
     Write-Error "ERROR: JAR not found at: $JarSourcePath`nRun without -SkipJarBuild to rebuild."
@@ -100,14 +102,75 @@ if (-not (Test-Path $DistDir)) {
 }
 
 Copy-Item -Path $JarSourcePath -Destination $JarDestPath -Force
+Copy-Item -Path (Join-Path $ScriptDir "ContextClipLauncher.cmd") -Destination (Join-Path $DistDir "ContextClipLauncher.cmd") -Force
 $jarSize = (Get-Item $JarDestPath).Length
 $jarSizeMB = [math]::Round($jarSize / 1048576, 1)
 Write-Host "    Copied: $JarDestPath ($jarSizeMB MB)" -ForegroundColor Green
 
-# --- Step 3: Compile Inno Setup installer -----------------------------------
+# --- Step 3: Build Bundled Java Runtime via jlink ----------------------------
+
+if (-not $SkipRuntimeBuild) {
+    Write-Host "[3/4] Building bundled Java runtime via jlink..." -ForegroundColor Yellow
+
+    # Locate jlink
+    $jlinkPath = $null
+    if (Test-Path "env:JAVA_HOME") {
+        $candidate = Join-Path $env:JAVA_HOME "bin\jlink.exe"
+        if (Test-Path $candidate) {
+            $jlinkPath = $candidate
+        }
+    }
+
+    if (-not $jlinkPath) {
+        $jlinkCmd = Get-Command jlink.exe -ErrorAction SilentlyContinue
+        if ($jlinkCmd) {
+            $jlinkPath = $jlinkCmd.Source
+        }
+    }
+
+    if (-not $jlinkPath) {
+        Write-Error "ERROR: 'jlink' not found in JAVA_HOME\bin or PATH. A JDK (Java 11+) is required to build the bundled runtime."
+        exit 1
+    }
+
+    Write-Host "    Found jlink at: $jlinkPath" -ForegroundColor DarkGray
+
+    # Clean existing runtime in dist/ if present
+    if (Test-Path $RuntimeDestPath) {
+        Remove-Item -Recurse -Force $RuntimeDestPath
+    }
+
+    # Generate custom JRE with required modules for AWT, accessibility, and Windows HTTPS
+    & $jlinkPath `
+        --add-modules java.base,java.desktop,java.net.http,jdk.accessibility,jdk.crypto.mscapi,jdk.unsupported.desktop `
+        --strip-debug `
+        --no-man-pages `
+        --no-header-files `
+        --compress zip-6 `
+        --output $RuntimeDestPath
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "ERROR: jlink failed with exit code $LASTEXITCODE"
+        exit $LASTEXITCODE
+    }
+
+    if (-not (Test-Path (Join-Path $RuntimeDestPath "bin\javaw.exe"))) {
+        Write-Error "ERROR: Bundled runtime generation failed - bin\javaw.exe missing."
+        exit 1
+    }
+
+    Write-Host "    Bundled runtime generated successfully at: $RuntimeDestPath" -ForegroundColor Green
+} elseif (Test-Path (Join-Path $RuntimeDestPath "bin\javaw.exe")) {
+    Write-Host "[3/4] Using existing bundled runtime (-SkipRuntimeBuild specified)." -ForegroundColor DarkGray
+} else {
+    Write-Error "ERROR: -SkipRuntimeBuild specified but bundled runtime not found at: $RuntimeDestPath"
+    exit 1
+}
+
+# --- Step 4: Compile Inno Setup installer -----------------------------------
 
 if (-not $SkipInnoSetup) {
-    Write-Host "[3/3] Compiling Inno Setup installer..." -ForegroundColor Yellow
+    Write-Host "[4/4] Compiling Inno Setup installer..." -ForegroundColor Yellow
 
     # Search for iscc.exe in standard Inno Setup installation paths
     $innoSearchPaths = @(

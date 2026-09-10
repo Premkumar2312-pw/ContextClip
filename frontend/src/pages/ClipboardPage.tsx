@@ -37,9 +37,37 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
     }
   }, []);
 
+  // Silent background poll to synchronize new captures live without UI flickering
+  const pollEntries = useCallback(async () => {
+    try {
+      const data = await getClipboardEntries();
+      setEntries((prev) => {
+        if (
+          prev.length === data.length &&
+          prev.every((entry, idx) => entry.id === data[idx]?.id)
+        ) {
+          return prev; // No changes, keep existing object reference to avoid re-renders
+        }
+        return data;
+      });
+      setLastUpdated(new Date());
+      setError(null);
+    } catch {
+      // Silent poll fails gracefully without wiping existing entries
+    }
+  }, []);
+
   useEffect(() => {
     loadEntries();
-  }, [loadEntries]);
+
+    const intervalId = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        pollEntries();
+      }
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+  }, [loadEntries, pollEntries]);
 
   // Handle scrolling and highlighting targetEntryId
   useEffect(() => {
@@ -143,7 +171,12 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
         )}
 
         {error && entries.length === 0 && (
-          <ErrorState message={error} onRetry={loadEntries} />
+          <ErrorState
+            title="Unable to Load Clipboard Entries"
+            message={error}
+            onRetry={loadEntries}
+            retryLabel="Retry"
+          />
         )}
 
         {!loading && !error && entries.length === 0 && (

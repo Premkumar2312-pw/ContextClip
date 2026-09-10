@@ -59,6 +59,14 @@ public class ClipboardController {
             ));
         }
 
+        if (request.getContent().length() > ClipboardService.MAX_CLIPBOARD_CONTENT_LENGTH) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "error", "Bad Request",
+                    "message", "Clipboard content exceeds maximum allowed length of " + ClipboardService.MAX_CLIPBOARD_CONTENT_LENGTH + " characters",
+                    "status", 400
+            ));
+        }
+
         User user = getAuthenticatedUser(authentication);
         ClipboardEntry entry = clipboardService.save(request.getContent(), user);
         ClipboardResponse response = new ClipboardResponse(entry.getId(), "RECEIVED");

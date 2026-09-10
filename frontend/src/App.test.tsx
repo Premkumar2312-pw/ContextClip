@@ -844,5 +844,281 @@ function test() {
       });
       expect(screen.getByTestId('copy-pairing-code-btn')).toBeInTheDocument();
     });
+
+    it('43. Ask My Clipboard state survives navigation away to clipboard page and back', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard').mockResolvedValue({
+        answer: 'You have Docker and Git snippets.',
+        sources: [11],
+      });
+
+      render(<App />);
+
+      // Go to Ask page
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      // Enter question and submit
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'What snippets do I have?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      // Wait for answer
+      await waitFor(() => {
+        expect(screen.getByTestId('ask-answer-panel')).toBeInTheDocument();
+      });
+      expect(screen.getByText('You have Docker and Git snippets.')).toBeInTheDocument();
+
+      // Navigate away to Clipboard History page
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
+
+      // Navigate back to Ask My Clipboard
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      // State is preserved!
+      expect(screen.getByTestId('ask-question-input')).toHaveValue('What snippets do I have?');
+      expect(screen.getByTestId('ask-answer-panel')).toBeInTheDocument();
+      expect(screen.getByText('You have Docker and Git snippets.')).toBeInTheDocument();
+      expect(screen.getByTestId('ask-source-11')).toBeInTheDocument();
+    });
+
+    it('44. Delete failure keeps entry visible and displays error message', async () => {
+      vi.spyOn(clipboardApi, 'deleteClipboardEntry').mockRejectedValue(new Error('Network error deleting entry'));
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
+
+      expect(screen.getByTestId('clipboard-entry-11')).toBeInTheDocument();
+
+      // Click delete icon for entry 11
+      fireEvent.click(screen.getByTestId('delete-entry-11'));
+      expect(screen.getByTestId('delete-confirm-modal')).toBeInTheDocument();
+
+      // Confirm delete in modal
+      fireEvent.click(screen.getByTestId('delete-modal-confirm'));
+
+      // Modal closes, item remains, error alert appears
+      await waitFor(() => {
+        expect(screen.getByText('Network error deleting entry')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('clipboard-entry-11')).toBeInTheDocument();
+    });
+
+    it('45. Copy button copies exact raw text and displays Copied ✓ feedback', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: writeTextMock,
+        },
+      });
+      window.isSecureContext = true;
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
+
+      const copyBtn = screen.getByTestId('copy-entry-11');
+      expect(copyBtn).toHaveTextContent('Copy');
+
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(writeTextMock).toHaveBeenCalledWith('docker compose up --build');
+        expect(copyBtn).toHaveTextContent('Copied ✓');
+      });
+    });
+
+    it('46. Copy button failure shows Copy failed error feedback', async () => {
+      const writeTextMock = vi.fn().mockRejectedValue(new Error('Permission denied'));
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: writeTextMock,
+        },
+      });
+      window.isSecureContext = true;
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
+
+      const copyBtn = screen.getByTestId('copy-entry-11');
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(copyBtn).toHaveTextContent('Copy failed');
+      });
+    });
+
+    it('47. Copy button preserves exact whitespace, tabs, newlines, and Unicode', async () => {
+      const complexContent = "SELECT *\n\tFROM users\n\tWHERE name = 'தமிழ் 🙂' AND calc = '=SUM(A1:A10)';";
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue([
+        {
+          id: 99,
+          content: complexContent,
+          capturedAt: '2026-08-29T10:00:00Z',
+          type: 'SQL',
+          technology: 'SQL',
+          category: 'DATABASE',
+        },
+      ]);
+
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: writeTextMock,
+        },
+      });
+      window.isSecureContext = true;
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
+
+      const copyBtn = screen.getByTestId('copy-entry-99');
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(writeTextMock).toHaveBeenCalledWith(complexContent);
+      });
+    });
+
+    it('48. Background polling detects new clipboard entry without page reload', async () => {
+      let callCount = 0;
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return [
+            {
+              id: 1,
+              content: 'Initial clip',
+              capturedAt: '2026-08-29T10:00:00Z',
+              type: 'CODE',
+              technology: 'GENERIC',
+              category: 'DEVELOPMENT',
+            },
+          ];
+        }
+        return [
+          {
+            id: 2,
+            content: 'Second clip from live polling',
+            capturedAt: '2026-08-29T10:01:00Z',
+            type: 'CODE',
+            technology: 'GENERIC',
+            category: 'DEVELOPMENT',
+          },
+          {
+            id: 1,
+            content: 'Initial clip',
+            capturedAt: '2026-08-29T10:00:00Z',
+            type: 'CODE',
+            technology: 'GENERIC',
+            category: 'DEVELOPMENT',
+          },
+        ];
+      });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-entry-1')).toBeInTheDocument());
+
+      // After background poll triggers (interval 2500ms)
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('clipboard-entry-2')).toBeInTheDocument();
+        },
+        { timeout: 6000 }
+      );
+    });
+
+    it('49. Ask My Clipboard state and history entries persist across tab navigation and back', async () => {
+      vi.spyOn(clipboardApi, 'askClipboard').mockResolvedValue({
+        answer: 'Persisted AI response across navigation',
+        sources: [1],
+      });
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId('ask-question-input'), {
+        target: { value: 'How does caching work?' },
+      });
+      fireEvent.click(screen.getByTestId('ask-submit-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Persisted AI response across navigation')).toBeInTheDocument();
+      });
+
+      // Switch to Clipboard tab
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
+
+      // Switch back to Ask tab
+      fireEvent.click(screen.getByRole('button', { name: /ask navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('ask-question-input')).toBeInTheDocument());
+
+      expect(screen.getByTestId('ask-question-input')).toHaveValue('How does caching work?');
+      expect(screen.getByText('Persisted AI response across navigation')).toBeInTheDocument();
+    });
+
+    it('50. Copy button works reliably on repeated consecutive clicks', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: writeTextMock,
+        },
+      });
+      window.isSecureContext = true;
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+      await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
+
+      const copyBtn = screen.getByTestId('copy-entry-11');
+      fireEvent.click(copyBtn);
+      fireEvent.click(copyBtn);
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(writeTextMock).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    it('51. Analytics shows offline state and Retry button when backend is unreachable', async () => {
+      vi.spyOn(analyticsApi, 'fetchAllAnalytics').mockRejectedValue(
+        new Error('Failed to fetch: Connection refused')
+      );
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /analytics navigation/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Analytics Unavailable')).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(/Backend is currently offline. Please ensure the server is running and try again./i)
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    });
+
+    it('52. Dashboard shows offline state and Retry Connection when backend is unreachable', async () => {
+      vi.spyOn(analyticsApi, 'fetchAllAnalytics').mockRejectedValue(
+        new Error('Failed to fetch: Connection refused')
+      );
+
+      render(<App />);
+      // Dashboard is default route
+      await waitFor(() => {
+        expect(screen.getByText('Dashboard Overview Unavailable')).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(/Backend is currently offline. Please ensure the server is running and try again./i)
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Retry Connection/i })).toBeInTheDocument();
+    });
   });
 });

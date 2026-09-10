@@ -23,9 +23,28 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({
   const [recentEntries, setRecentEntries] = useState<ClipboardEntry[]>([]);
 
   useEffect(() => {
-    getClipboardEntries()
-      .then((entries) => setRecentEntries(entries.slice(0, 3)))
-      .catch(() => {});
+    let isMounted = true;
+    const fetchRecent = () => {
+      getClipboardEntries()
+        .then((entries) => {
+          if (isMounted) {
+            setRecentEntries(entries.slice(0, 3));
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchRecent();
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchRecent();
+      }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [data]);
 
   const isEmpty =
@@ -47,7 +66,14 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({
       <main className="content-container">
         {loading && !data && <LoadingSkeleton />}
 
-        {error && !data && <ErrorState message={error} onRetry={refresh} />}
+        {error && !data && (
+          <ErrorState
+            title="Dashboard Overview Unavailable"
+            message={error}
+            onRetry={refresh}
+            retryLabel="Retry Connection"
+          />
+        )}
 
         {data && isEmpty && (
           <EmptyState
