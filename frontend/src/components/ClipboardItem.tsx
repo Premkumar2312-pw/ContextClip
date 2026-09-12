@@ -98,6 +98,11 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
       setShowDeleteModal(false);
       setIsDeleting(false);
       onDelete?.(entry.id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('contextclip:entry-deleted', { detail: { id: entry.id } })
+        );
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete clipboard entry.';
       setDeleteError(msg);
@@ -161,6 +166,40 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
           <span className="badge badge-tech">{entry.technology || 'UNKNOWN'}</span>
           <span className="badge badge-cat">{entry.category || 'GENERAL'}</span>
         </div>
+        {/* Phase 19 — enriched classification badges */}
+        {(entry.language || entry.technologies || entry.sensitive) && (
+          <div className="entry-classification-badges">
+            {entry.sensitive && (
+              <span className="badge badge-sensitive" title="Contains sensitive data (JWT, API key, password, or private key)">
+                🔒 SENSITIVE
+              </span>
+            )}
+            {entry.language && (
+              <span className="badge badge-language" title={`Detected language: ${entry.language}`}>
+                {entry.language}
+              </span>
+            )}
+            {entry.technologies && (() => {
+              const techs = entry.technologies.split(',').map(t => t.trim()).filter(Boolean);
+              const visible = techs.slice(0, 3);
+              const overflow = techs.length - visible.length;
+              return (
+                <>
+                  {visible.map((tech) => (
+                    <span key={tech} className="badge badge-tech-label" title={tech}>
+                      {tech.replace(/_/g, ' ')}
+                    </span>
+                  ))}
+                  {overflow > 0 && (
+                    <span className="badge badge-tech-overflow" title={techs.slice(3).join(', ')}>
+                      +{overflow} more
+                    </span>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
         {formattedDate && (
           <span className="entry-timestamp" title={entry.capturedAt}>
             <Clock size={12} style={{ display: 'inline', marginRight: 4 }} />

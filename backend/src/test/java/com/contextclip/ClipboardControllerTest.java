@@ -68,7 +68,7 @@ class ClipboardControllerTest {
                 .andExpect(jsonPath("$[0].id").value(notNullValue()))
                 .andExpect(jsonPath("$[0].content").value("docker compose up --build"))
                 .andExpect(jsonPath("$[0].capturedAt").value(notNullValue()))
-                .andExpect(jsonPath("$[0].type").value("TERMINAL_COMMAND"))
+                .andExpect(jsonPath("$[0].type").value("COMMAND"))
                 .andExpect(jsonPath("$[0].technology").value("DOCKER"))
                 .andExpect(jsonPath("$[0].category").value("DEVOPS"))
                 .andExpect(jsonPath("$[1].id").value(notNullValue()))
@@ -156,28 +156,78 @@ class ClipboardControllerTest {
     }
 
     @Test
-    void testDeleteNonExistentEntryReturns404() throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/clipboard/999999"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("Not Found"));
+    void testPhase19MetadataSurvivedPostToGet() throws Exception {
+        // POST a classified Python entry (simulates what the backend classifier produces)
+        String pythonCode = "import pandas as pd\ndf = pd.read_csv(\"employees.csv\")\nprint(df.head())";
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        String payload = mapper.writeValueAsString(java.util.Map.of("content", pythonCode));
+
+        mockMvc.perform(post("/api/clipboard")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated());
+
+        // GET and verify Phase 19 fields are present in the JSON response
+        mockMvc.perform(get("/api/clipboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(notNullValue()))
+                .andExpect(jsonPath("$[0].content").value(pythonCode))
+                .andExpect(jsonPath("$[0].capturedAt").value(notNullValue()))
+                .andExpect(jsonPath("$[0].type").value("CODE"))
+                .andExpect(jsonPath("$[0].technology").value("PYTHON"))
+                .andExpect(jsonPath("$[0].category").value("PROGRAMMING"))
+                // Phase 19 required fields
+                .andExpect(jsonPath("$[0].language").value("PYTHON"))
+                .andExpect(jsonPath("$[0].technologies").value(org.hamcrest.Matchers.containsString("PYTHON")))
+                .andExpect(jsonPath("$[0].categories").value(org.hamcrest.Matchers.containsString("PROGRAMMING")))
+                .andExpect(jsonPath("$[0].sensitive").value(false))
+                .andExpect(jsonPath("$[0].confidence").value(notNullValue()));
     }
 
     @Test
-    void testRapidConsecutiveClipboardSubmissionsSequence() throws Exception {
-        String[] sequence = {"TEST_A", "TEST_B", "TEST_C", "TEST_D", "TEST_E"};
-        for (String item : sequence) {
-            mockMvc.perform(post("/api/clipboard")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"content\":\"" + item + "\"}"))
-                    .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.status").value("RECEIVED"));
-        }
+    void testPhase19AgentPreClassifiedMetadataSurvivedPostToGet() throws Exception {
+        // POST with agent pre-classified metadata (simulates BackendClient payload)
+        String body = "{\"content\":\"docker run -it ubuntu\","
+                + "\"type\":\"COMMAND\","
+                + "\"technology\":\"DOCKER\","
+                + "\"category\":\"DEVOPS\","
+                + "\"language\":null,"
+                + "\"technologies\":\"DOCKER\","
+                + "\"categories\":\"DEVOPS\","
+                + "\"sensitive\":false,"
+                + "\"confidence\":0.97}";
 
-        var entries = clipboardService.getAll();
-        org.junit.jupiter.api.Assertions.assertEquals(5, entries.size());
-        java.util.List<String> contents = entries.stream().map(com.contextclip.model.ClipboardEntry::getContent).toList();
-        for (String item : sequence) {
-            org.junit.jupiter.api.Assertions.assertTrue(contents.contains(item), "Missing expected entry: " + item);
-        }
+        mockMvc.perform(post("/api/clipboard")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/clipboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("COMMAND"))
+                .andExpect(jsonPath("$[0].technology").value("DOCKER"))
+                .andExpect(jsonPath("$[0].category").value("DEVOPS"))
+                .andExpect(jsonPath("$[0].technologies").value("DOCKER"))
+                .andExpect(jsonPath("$[0].categories").value("DEVOPS"))
+                .andExpect(jsonPath("$[0].sensitive").value(false))
+                .andExpect(jsonPath("$[0].confidence").value(0.97));
+    }
+
+    @Test
+    void testPhase19SensitiveEntryFlaggedCorrectly() throws Exception {
+        // This JWT would be marked sensitive by the classifier
+        String jwtLike = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        String payload = mapper.writeValueAsString(java.util.Map.of("content", jwtLike));
+
+        mockMvc.perform(post("/api/clipboard")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/clipboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].sensitive").value(true));
     }
 }

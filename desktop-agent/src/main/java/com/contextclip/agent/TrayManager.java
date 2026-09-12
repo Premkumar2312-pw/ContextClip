@@ -29,16 +29,23 @@ public class TrayManager {
     private boolean traySupported = false;
     private SystemTray systemTray = null;
     private TrayIcon trayIcon = null;
-    private MenuItem statusItem = null;
-    private MenuItem pauseResumeItem = null;
+    private MenuItem monitoringItem = null;
 
     private volatile ConnectionStatus currentStatus = ConnectionStatus.CONNECTED;
     private volatile ConnectionStatus previousOperationalStatus = ConnectionStatus.CONNECTED;
     private volatile boolean isPaused = false;
 
     public TrayManager(Consumer<Boolean> onPauseToggle, Runnable onExit) {
+        this(onPauseToggle, onExit, false);
+    }
+
+    public TrayManager(Consumer<Boolean> onPauseToggle, Runnable onExit, boolean initialPaused) {
         this.onPauseToggle = Objects.requireNonNull(onPauseToggle, "onPauseToggle callback must not be null");
         this.onExit = Objects.requireNonNull(onExit, "onExit callback must not be null");
+        this.isPaused = initialPaused;
+        if (initialPaused) {
+            this.currentStatus = ConnectionStatus.PAUSED;
+        }
     }
 
     public synchronized boolean initialize() {
@@ -77,21 +84,14 @@ public class TrayManager {
 
             PopupMenu popup = new PopupMenu();
 
-            // Status display (disabled so it functions as a display header)
-            statusItem = new MenuItem("Status: " + currentStatus.getDisplayName());
-            statusItem.setEnabled(false);
-            popup.add(statusItem);
-
-            popup.addSeparator();
-
-            // Pause / Resume toggle
-            pauseResumeItem = new MenuItem("Pause Monitoring");
-            pauseResumeItem.addActionListener(e -> {
+            // Clear, single monitoring toggle control
+            monitoringItem = new MenuItem(isPaused ? "Monitoring: OFF" : "Monitoring: ON");
+            monitoringItem.addActionListener(e -> {
                 boolean newPaused = !isPaused;
                 setPausedState(newPaused);
                 onPauseToggle.accept(newPaused);
             });
-            popup.add(pauseResumeItem);
+            popup.add(monitoringItem);
 
             popup.addSeparator();
 
@@ -137,10 +137,10 @@ public class TrayManager {
         }
 
         try {
-            if (statusItem != null) {
-                statusItem.setLabel("Status: " + status.getDisplayName());
+            if (monitoringItem != null) {
+                monitoringItem.setLabel(isPaused ? "Monitoring: OFF" : "Monitoring: ON");
             }
-            trayIcon.setToolTip("ContextClip Agent - " + status.getDisplayName());
+            trayIcon.setToolTip("ContextClip Agent - " + (isPaused ? "Monitoring: OFF" : "Monitoring: ON"));
             trayIcon.setImage(createTrayImage(status));
             AgentLogger.debug("SystemTray status updated to: " + status.name());
         } catch (Throwable t) {
@@ -150,8 +150,8 @@ public class TrayManager {
 
     public synchronized void setPausedState(boolean paused) {
         this.isPaused = paused;
-        if (pauseResumeItem != null) {
-            pauseResumeItem.setLabel(paused ? "Resume Monitoring" : "Pause Monitoring");
+        if (monitoringItem != null) {
+            monitoringItem.setLabel(paused ? "Monitoring: OFF" : "Monitoring: ON");
         }
         if (paused) {
             updateStatus(ConnectionStatus.PAUSED);
@@ -190,7 +190,11 @@ public class TrayManager {
     }
 
     public String getPauseResumeLabel() {
-        return pauseResumeItem != null ? pauseResumeItem.getLabel() : (isPaused ? "Resume Monitoring" : "Pause Monitoring");
+        return monitoringItem != null ? monitoringItem.getLabel() : (isPaused ? "Monitoring: OFF" : "Monitoring: ON");
+    }
+
+    public String getMonitoringLabel() {
+        return getPauseResumeLabel();
     }
 
     public static Image createTrayImage(ConnectionStatus status) {

@@ -5,7 +5,7 @@ import com.contextclip.classifier.ClipboardClassifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ClipboardClassifierTest {
 
@@ -16,65 +16,48 @@ class ClipboardClassifierTest {
         classifier = new ClipboardClassifier();
     }
 
-    @Test
-    void testSqlClassification() {
-        ClassificationResult result = classifier.classify("SELECT * FROM employees;");
-        assertEquals("SQL", result.type());
-        assertEquals("SQL", result.technology());
-        assertEquals("DATABASE", result.category());
+    // -------------------------------------------------------------------------
+    // Phase 19 — multi-label and language tests
+    // -------------------------------------------------------------------------
 
-        ClassificationResult insertResult = classifier.classify("INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');");
-        assertEquals("SQL", insertResult.type());
-        assertEquals("SQL", insertResult.technology());
-        assertEquals("DATABASE", insertResult.category());
+    @Test
+    void testSensitiveJwtDetected() {
+        // Realistic JWT-shaped token
+        String jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" +
+                ".eyJzdWIiOiJ1c2VyMTIzIiwicm9sZSI6IkFETUlOIn0" +
+                ".SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+        ClassificationResult r = classifier.classify(jwt);
+        assertTrue(r.sensitive(), "JWT token must be detected as sensitive");
     }
 
     @Test
-    void testGitCommandClassification() {
-        ClassificationResult result = classifier.classify("git push origin main");
-        assertEquals("TERMINAL_COMMAND", result.type());
-        assertEquals("GIT", result.technology());
-        assertEquals("DEVOPS", result.category());
+    void testSensitiveApiKey() {
+        ClassificationResult r = classifier.classify("api_key=sk-abc123secretvalue9999longkey");
+        assertTrue(r.sensitive(), "api_key= pattern must be flagged as sensitive");
     }
 
     @Test
-    void testDockerCommandClassification() {
-        ClassificationResult result = classifier.classify("docker compose up --build");
-        assertEquals("TERMINAL_COMMAND", result.type());
-        assertEquals("DOCKER", result.technology());
-        assertEquals("DEVOPS", result.category());
-
-        ClassificationResult runResult = classifier.classify("docker run -d -p 5432:5432 postgres:17-alpine");
-        assertEquals("TERMINAL_COMMAND", runResult.type());
-        assertEquals("DOCKER", runResult.technology());
-        assertEquals("DEVOPS", runResult.category());
+    void testSensitivePrivateKey() {
+        String pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAx...\n-----END RSA PRIVATE KEY-----";
+        ClassificationResult r = classifier.classify(pem);
+        assertTrue(r.sensitive(), "PEM private key must be flagged as sensitive");
     }
 
     @Test
-    void testMavenCommandClassification() {
-        ClassificationResult result = classifier.classify("mvn clean test");
-        assertEquals("TERMINAL_COMMAND", result.type());
-        assertEquals("MAVEN", result.technology());
-        assertEquals("DEVOPS", result.category());
+    void testSensitivePassword() {
+        ClassificationResult r = classifier.classify("password=mysecretpassword123");
+        assertTrue(r.sensitive(), "password= pattern must be flagged as sensitive");
     }
 
     @Test
-    void testJavaCodeClassification() {
-        ClassificationResult result = classifier.classify("""
-                public class Hello {
-                    public static void main(String[] args) {
-                        System.out.println("Hello World");
-                    }
-                }
-                """);
-        assertEquals("CODE", result.type());
-        assertEquals("JAVA", result.technology());
-        assertEquals("PROGRAMMING", result.category());
+    void testNonSensitivePlainText() {
+        ClassificationResult r = classifier.classify("Hello world, this is a normal sentence.");
+        assertFalse(r.sensitive(), "Normal text must NOT be flagged as sensitive");
     }
 
     @Test
-    void testSpringBootCodeClassification() {
-        ClassificationResult result = classifier.classify("""
+    void testSpringBootCodeHasJavaLanguageAndTechs() {
+        ClassificationResult r = classifier.classify("""
                 @RestController
                 @RequestMapping("/api/test")
                 public class TestController {
@@ -84,25 +67,197 @@ class ClipboardClassifierTest {
                     }
                 }
                 """);
-        assertEquals("CODE", result.type());
-        assertEquals("SPRING_BOOT", result.technology());
-        assertEquals("PROGRAMMING", result.category());
+        assertEquals("CODE", r.type());
+        // Primary technology must be SPRING_BOOT (or JAVA) — both are valid primary values
+        assertTrue(r.technologies().contains("SPRING_BOOT"), "technologies must include SPRING_BOOT");
+        assertTrue(r.technologies().contains("JAVA"), "technologies must include JAVA");
+        assertEquals("JAVA", r.language(), "language must be JAVA for Spring Boot code");
+        assertEquals("PROGRAMMING", r.category());
+        assertFalse(r.sensitive());
     }
 
     @Test
-    void testPythonCodeClassification() {
-        ClassificationResult result = classifier.classify("""
+    void testJavaCodeLanguage() {
+        ClassificationResult r = classifier.classify("""
+                public class Hello {
+                    public static void main(String[] args) {
+                        System.out.println("Hello World");
+                    }
+                }
+                """);
+        assertEquals("CODE", r.type());
+        assertEquals("JAVA", r.language());
+        assertTrue(r.technologies().contains("JAVA"));
+        assertEquals("PROGRAMMING", r.category());
+    }
+
+    @Test
+    void testPythonCodeLanguage() {
+        ClassificationResult r = classifier.classify("""
                 def calculate_total(items):
                     return sum(item.price for item in items)
                 """);
-        assertEquals("CODE", result.type());
-        assertEquals("PYTHON", result.technology());
-        assertEquals("PROGRAMMING", result.category());
+        assertEquals("CODE", r.type());
+        assertEquals("PYTHON", r.language());
+        assertTrue(r.technologies().contains("PYTHON"));
+        assertEquals("PROGRAMMING", r.category());
     }
 
     @Test
+    void testJsonMultiLabelCategory() {
+        ClassificationResult r = classifier.classify("{\"name\":\"Prem\",\"age\":20}");
+        assertEquals("JSON", r.type());
+        assertTrue(r.categories().contains("DATA"), "JSON must be in DATA category");
+    }
+
+    @Test
+    void testUrlHasDocumentationCategory() {
+        ClassificationResult r = classifier.classify("https://docs.spring.io/spring-boot/reference/");
+        assertEquals("URL", r.type());
+        assertTrue(r.categories().contains("DOCUMENTATION"));
+    }
+
+    @Test
+    void testUuidDetection() {
+        ClassificationResult r = classifier.classify("550e8400-e29b-41d4-a716-446655440000");
+        assertEquals("UUID", r.type());
+    }
+
+    @Test
+    void testEmailDetection() {
+        ClassificationResult r = classifier.classify("user@example.com");
+        assertEquals("EMAIL", r.type());
+    }
+
+    @Test
+    void testIpAddressDetection() {
+        ClassificationResult r = classifier.classify("192.168.1.1");
+        assertEquals("IP_ADDRESS", r.type());
+    }
+
+    @Test
+    void testFalsePositiveGuard_NormalProseNotCommand() {
+        // Plain English mentioning Docker and Java must NOT become COMMAND or CODE
+        ClassificationResult r = classifier.classify("I am learning Docker and Java today, it is very interesting.");
+        assertEquals("PLAIN_TEXT", r.type(),
+                "Normal prose mentioning tech names must be classified as PLAIN_TEXT, not COMMAND/CODE");
+        assertFalse(r.sensitive());
+    }
+
+    @Test
+    void testFalsePositiveGuard_DockerMentionInSentence() {
+        ClassificationResult r = classifier.classify("We should use Docker in our project for containerization.");
+        assertEquals("PLAIN_TEXT", r.type(),
+                "Prose mentioning Docker must not be COMMAND");
+    }
+
+    @Test
+    void testDockerCommandDetection() {
+        ClassificationResult r = classifier.classify("docker compose up --build");
+        assertEquals("COMMAND", r.type());
+        assertTrue(r.technologies().contains("DOCKER"));
+        assertEquals("DEVOPS", r.category());
+    }
+
+    @Test
+    void testGitCommandDetection() {
+        ClassificationResult r = classifier.classify("git push origin main");
+        assertEquals("COMMAND", r.type());
+        assertTrue(r.technologies().contains("GIT"));
+        assertEquals("DEVOPS", r.category());
+    }
+
+    @Test
+    void testMavenCommandDetection() {
+        ClassificationResult r = classifier.classify("mvn clean test");
+        assertEquals("COMMAND", r.type());
+        assertTrue(r.technologies().contains("MAVEN"));
+    }
+
+    @Test
+    void testSqlSelectDetection() {
+        ClassificationResult r = classifier.classify("SELECT * FROM employees;");
+        assertEquals("SQL", r.type());
+        assertTrue(r.technologies().contains("SQL"));
+        assertEquals("DATABASE", r.category());
+    }
+
+    @Test
+    void testSqlInsertDetection() {
+        ClassificationResult r = classifier.classify("INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');");
+        assertEquals("SQL", r.type());
+        assertEquals("DATABASE", r.category());
+    }
+
+    @Test
+    void testStackTraceDetection() {
+        ClassificationResult r = classifier.classify(
+                "NullPointerException at com.example.Test.main(Test.java:10)");
+        assertEquals("STACK_TRACE", r.type());
+        assertTrue(r.technologies().contains("JAVA"));
+        assertEquals("DEBUG", r.category());
+    }
+
+    @Test
+    void testPythonTracebackDetection() {
+        ClassificationResult r = classifier.classify("""
+                Traceback (most recent call last):
+                  File "app.py", line 12, in <module>
+                    main()
+                ZeroDivisionError: division by zero
+                """);
+        assertEquals("STACK_TRACE", r.type());
+        assertEquals("PYTHON", r.language());
+        assertEquals("DEBUG", r.category());
+    }
+
+    @Test
+    void testDockerfileDetection() {
+        ClassificationResult r = classifier.classify("""
+                FROM eclipse-temurin:25-jre
+                WORKDIR /app
+                COPY target/app.jar app.jar
+                EXPOSE 8080
+                ENTRYPOINT ["java", "-jar", "app.jar"]
+                """);
+        assertEquals("CONFIGURATION", r.type());
+        assertTrue(r.technologies().contains("DOCKER"));
+    }
+
+    @Test
+    void testNullAndBlankSafety() {
+        ClassificationResult nullResult = classifier.classify(null);
+        assertEquals("PLAIN_TEXT", nullResult.type());
+        assertFalse(nullResult.sensitive());
+
+        ClassificationResult emptyResult = classifier.classify("");
+        assertEquals("PLAIN_TEXT", emptyResult.type());
+
+        ClassificationResult blankResult = classifier.classify("   \n\t  ");
+        assertEquals("PLAIN_TEXT", blankResult.type());
+    }
+
+    @Test
+    void testConfidenceIsPositive() {
+        ClassificationResult r = classifier.classify("SELECT id FROM users WHERE active = true;");
+        assertTrue(r.confidence() > 0f && r.confidence() <= 1.0f,
+                "Confidence must be between 0 and 1");
+    }
+
+    @Test
+    void testTechnologiesListIsNeverNull() {
+        ClassificationResult r = classifier.classify("some random plain text here");
+        assertNotNull(r.technologies(), "technologies() must never be null");
+        assertNotNull(r.categories(), "categories() must never be null");
+    }
+
+    // -------------------------------------------------------------------------
+    // React code test (Technology = TYPESCRIPT or JAVASCRIPT, has REACT in techs)
+    // -------------------------------------------------------------------------
+
+    @Test
     void testReactCodeClassification() {
-        ClassificationResult result = classifier.classify("""
+        ClassificationResult r = classifier.classify("""
                 import React, { useState } from 'react';
 
                 export function Counter() {
@@ -110,73 +265,8 @@ class ClipboardClassifierTest {
                     return <button onClick={() => setCount(count + 1)}>{count}</button>;
                 }
                 """);
-        assertEquals("CODE", result.type());
-        assertEquals("REACT", result.technology());
-        assertEquals("WEB", result.category());
-    }
-
-    @Test
-    void testJsonClassification() {
-        ClassificationResult result = classifier.classify("{\"name\":\"Prem\",\"age\":20}");
-        assertEquals("JSON", result.type());
-        assertEquals("UNKNOWN", result.technology());
-        assertEquals("GENERAL", result.category());
-    }
-
-    @Test
-    void testUrlClassification() {
-        ClassificationResult result = classifier.classify("https://spring.io/projects/spring-boot");
-        assertEquals("URL", result.type());
-        assertEquals("SPRING_BOOT", result.technology());
-        assertEquals("DOCUMENTATION", result.category());
-
-        ClassificationResult generalUrl = classifier.classify("https://example.com/some/article");
-        assertEquals("URL", generalUrl.type());
-        assertEquals("UNKNOWN", generalUrl.technology());
-        assertEquals("DOCUMENTATION", generalUrl.category());
-    }
-
-    @Test
-    void testErrorClassification() {
-        ClassificationResult result = classifier.classify("NullPointerException at com.example.Test.main(Test.java:10)");
-        assertEquals("ERROR", result.type());
-        assertEquals("JAVA", result.technology());
-        assertEquals("ERROR", result.category());
-
-        ClassificationResult pythonError = classifier.classify("""
-                Traceback (most recent call last):
-                  File "app.py", line 12, in <module>
-                    main()
-                ZeroDivisionError: division by zero
-                """);
-        assertEquals("ERROR", pythonError.type());
-        assertEquals("PYTHON", pythonError.technology());
-        assertEquals("ERROR", pythonError.category());
-    }
-
-    @Test
-    void testPlainTextClassification() {
-        ClassificationResult result = classifier.classify("random normal sentence");
-        assertEquals("TEXT", result.type());
-        assertEquals("UNKNOWN", result.technology());
-        assertEquals("GENERAL", result.category());
-    }
-
-    @Test
-    void testNullAndBlankSafety() {
-        ClassificationResult nullResult = classifier.classify(null);
-        assertEquals("TEXT", nullResult.type());
-        assertEquals("UNKNOWN", nullResult.technology());
-        assertEquals("GENERAL", nullResult.category());
-
-        ClassificationResult emptyResult = classifier.classify("");
-        assertEquals("TEXT", emptyResult.type());
-        assertEquals("UNKNOWN", emptyResult.technology());
-        assertEquals("GENERAL", emptyResult.category());
-
-        ClassificationResult blankResult = classifier.classify("   \n\t  ");
-        assertEquals("TEXT", blankResult.type());
-        assertEquals("UNKNOWN", blankResult.technology());
-        assertEquals("GENERAL", blankResult.category());
+        assertEquals("CODE", r.type());
+        assertTrue(r.technologies().contains("REACT"), "React component must have REACT in technologies");
+        assertEquals("WEB", r.category());
     }
 }

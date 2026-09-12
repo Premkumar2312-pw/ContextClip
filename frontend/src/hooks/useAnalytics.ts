@@ -36,6 +36,18 @@ export function useAnalytics(): UseAnalyticsResult {
 
   useEffect(() => {
     loadData();
+
+    const handleDeletedEvent = () => {
+      loadData();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('contextclip:entry-deleted', handleDeletedEvent);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('contextclip:entry-deleted', handleDeletedEvent);
+      }
+    };
   }, [loadData]);
 
   return {

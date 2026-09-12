@@ -105,27 +105,32 @@ public class ClipboardAgentApplication {
 
         backendClient = new BackendClient(config);
 
+        // Check saved monitoring preference (default: ON)
+        boolean initialMonitoringEnabled = AgentConfig.isMonitoringEnabled();
+
         // Initialize TrayManager first so tray icon appears immediately on primary startup
         try {
             trayManager = new TrayManager(
                 paused -> {
+                    AgentConfig.saveMonitoringEnabled(!paused);
                     if (paused) {
                         if (clipboardMonitor != null) {
                             clipboardMonitor.pause();
                         }
-                        AgentLogger.info("Clipboard monitoring paused.");
+                        AgentLogger.info("Clipboard monitoring paused (Monitoring: OFF). User preference saved.");
                     } else {
                         if (clipboardMonitor != null) {
                             clipboardMonitor.resume();
                         }
-                        AgentLogger.info("Clipboard monitoring resumed.");
+                        AgentLogger.info("Clipboard monitoring resumed (Monitoring: ON). User preference saved.");
                     }
                 },
                 () -> {
                     AgentLogger.info("Exit requested from System Tray.");
                     shutdown();
                     System.exit(0);
-                }
+                },
+                !initialMonitoringEnabled
             );
             trayManager.initialize();
         } catch (Throwable t) {
@@ -160,10 +165,15 @@ public class ClipboardAgentApplication {
 
             if (clipboardMonitor != null) {
                 clipboardMonitor.start();
-                AgentLogger.info("Clipboard monitoring active.");
+                if (!initialMonitoringEnabled) {
+                    clipboardMonitor.pause();
+                    AgentLogger.info("Clipboard monitoring initialized as PAUSED (Monitoring: OFF) based on saved user preference.");
+                } else {
+                    AgentLogger.info("Clipboard monitoring active (Monitoring: ON).");
+                }
             }
             if (trayManager != null) {
-                trayManager.updateStatus(ConnectionStatus.CONNECTED);
+                trayManager.updateStatus(initialMonitoringEnabled ? ConnectionStatus.CONNECTED : ConnectionStatus.PAUSED);
             }
             // Block main thread until shutdown signal
             KEEP_ALIVE_LATCH.await();

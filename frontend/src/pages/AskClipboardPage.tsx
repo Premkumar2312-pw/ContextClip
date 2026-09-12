@@ -200,8 +200,8 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
           </div>
         )}
 
-        {/* Main ask panel — shown when history exists or still loading entries */}
-        {(hasEntries || !entriesLoaded) && (
+        {/* Main ask panel — shown when history exists, still loading entries, or active session exists */}
+        {(hasEntries || !entriesLoaded || hasActiveSession) && (
           <div className="ask-page-layout">
             {/* Question panel */}
             <section className="ask-question-card" aria-label="Ask a question">

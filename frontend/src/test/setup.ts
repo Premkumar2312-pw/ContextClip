@@ -7,26 +7,36 @@ globalThis.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
-// Polyfill in-memory localStorage for jsdom test environment
-const storageMap = new Map<string, string>();
-const localStorageMock: Storage = {
-  getItem: (key: string) => storageMap.get(key) ?? null,
-  setItem: (key: string, value: string) => {
-    storageMap.set(key, String(value));
-  },
-  removeItem: (key: string) => {
-    storageMap.delete(key);
-  },
-  clear: () => {
-    storageMap.clear();
-  },
-  key: (index: number) => Array.from(storageMap.keys())[index] ?? null,
-  get length() {
-    return storageMap.size;
-  },
+// Polyfill in-memory localStorage and sessionStorage for jsdom test environment
+const createStorageMock = (): Storage => {
+  const map = new Map<string, string>();
+  return {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      map.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      map.delete(key);
+    },
+    clear: () => {
+      map.clear();
+    },
+    key: (index: number) => Array.from(map.keys())[index] ?? null,
+    get length() {
+      return map.size;
+    },
+  };
 };
+
+const localStorageMock = createStorageMock();
+const sessionStorageMock = createStorageMock();
 
 Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageMock,
+  writable: true,
+});
+
+Object.defineProperty(globalThis, 'sessionStorage', {
+  value: sessionStorageMock,
   writable: true,
 });

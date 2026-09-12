@@ -66,7 +66,22 @@ export const ClipboardPage: React.FC<ClipboardPageProps> = ({ targetEntryId }) =
       }
     }, 2500);
 
-    return () => clearInterval(intervalId);
+    const handleDeletedEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: number }>;
+      if (customEvent.detail?.id) {
+        setEntries((prev) => prev.filter((entry) => entry.id !== customEvent.detail.id));
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('contextclip:entry-deleted', handleDeletedEvent);
+    }
+
+    return () => {
+      clearInterval(intervalId);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('contextclip:entry-deleted', handleDeletedEvent);
+      }
+    };
   }, [loadEntries, pollEntries]);
 
   // Handle scrolling and highlighting targetEntryId

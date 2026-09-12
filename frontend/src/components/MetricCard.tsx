@@ -15,6 +15,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 }) => {
   const displayValue =
     value === null || value === undefined || value === '' ? '—' : value;
+  const isLongText = typeof displayValue === 'string' && displayValue.length > 10;
 
   return (
     <div className="metric-card">
@@ -22,7 +23,12 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         <span className="metric-title">{title}</span>
         {icon && <div className="metric-icon">{icon}</div>}
       </div>
-      <div className="metric-value">{displayValue}</div>
+      <div
+        className={`metric-value${isLongText ? ' metric-value--long' : ''}`}
+        title={String(displayValue)}
+      >
+        {displayValue}
+      </div>
       {subtext && <div className="metric-sub">{subtext}</div>}
     </div>
   );

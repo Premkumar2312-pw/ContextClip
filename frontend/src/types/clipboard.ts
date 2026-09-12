@@ -5,6 +5,12 @@ export interface ClipboardEntry {
   type: string;
   technology: string;
   category: string;
+  // Phase 19 — multi-label classification fields (may be absent on older entries)
+  language?: string;
+  technologies?: string;  // comma-joined, e.g. "SPRING_BOOT,JAVA"
+  categories?: string;    // comma-joined, e.g. "PROGRAMMING,WEB"
+  sensitive?: boolean;
+  confidence?: number;
 }
 
 export interface ClipboardExplanationResponse {

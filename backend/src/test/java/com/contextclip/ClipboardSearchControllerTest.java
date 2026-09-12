@@ -90,7 +90,7 @@ class ClipboardSearchControllerTest {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].content").value("SELECT * FROM employees;"));
 
-        mockMvc.perform(get("/api/clipboard/search?type=TERMINAL_COMMAND"))
+        mockMvc.perform(get("/api/clipboard/search?type=COMMAND"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)));
     }
@@ -122,12 +122,12 @@ class ClipboardSearchControllerTest {
 
     @Test
     void testSearchCombinedFilters() throws Exception {
-        mockMvc.perform(get("/api/clipboard/search?type=TERMINAL_COMMAND&technology=DOCKER"))
+        mockMvc.perform(get("/api/clipboard/search?type=COMMAND&technology=DOCKER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].content").value("docker compose up --build"));
 
-        mockMvc.perform(get("/api/clipboard/search?type=TERMINAL_COMMAND&technology=SQL"))
+        mockMvc.perform(get("/api/clipboard/search?type=COMMAND&technology=SQL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
     }

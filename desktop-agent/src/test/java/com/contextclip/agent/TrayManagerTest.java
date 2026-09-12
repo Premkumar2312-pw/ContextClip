@@ -31,7 +31,8 @@ class TrayManagerTest {
     void testInitialState() {
         assertFalse(trayManager.isPaused(), "Initial isPaused must be false");
         assertEquals(ConnectionStatus.CONNECTED, trayManager.getCurrentStatus(), "Initial status must be CONNECTED");
-        assertEquals("Pause Monitoring", trayManager.getPauseResumeLabel());
+        assertEquals("Monitoring: ON", trayManager.getPauseResumeLabel());
+        assertEquals("Monitoring: ON", trayManager.getMonitoringLabel());
     }
 
     @Test
@@ -40,7 +41,8 @@ class TrayManagerTest {
 
         assertTrue(trayManager.isPaused(), "isPaused must be true after pause");
         assertEquals(ConnectionStatus.PAUSED, trayManager.getCurrentStatus(), "Status must be PAUSED");
-        assertEquals("Resume Monitoring", trayManager.getPauseResumeLabel(), "Menu label must be 'Resume Monitoring'");
+        assertEquals("Monitoring: OFF", trayManager.getPauseResumeLabel(), "Menu label must be 'Monitoring: OFF'");
+        assertEquals("Monitoring: OFF", trayManager.getMonitoringLabel());
     }
 
     @Test
@@ -54,7 +56,8 @@ class TrayManagerTest {
         trayManager.setPausedState(false);
         assertFalse(trayManager.isPaused(), "isPaused must be false after resume");
         assertEquals(ConnectionStatus.CONNECTED, trayManager.getCurrentStatus(), "Status must return to CONNECTED");
-        assertEquals("Pause Monitoring", trayManager.getPauseResumeLabel(), "Menu label must return to 'Pause Monitoring'");
+        assertEquals("Monitoring: ON", trayManager.getPauseResumeLabel(), "Menu label must return to 'Monitoring: ON'");
+        assertEquals("Monitoring: ON", trayManager.getMonitoringLabel());
     }
 
     @Test
@@ -63,12 +66,12 @@ class TrayManagerTest {
             trayManager.setPausedState(true);
             assertTrue(trayManager.isPaused());
             assertEquals(ConnectionStatus.PAUSED, trayManager.getCurrentStatus());
-            assertEquals("Resume Monitoring", trayManager.getPauseResumeLabel());
+            assertEquals("Monitoring: OFF", trayManager.getPauseResumeLabel());
 
             trayManager.setPausedState(false);
             assertFalse(trayManager.isPaused());
             assertEquals(ConnectionStatus.CONNECTED, trayManager.getCurrentStatus());
-            assertEquals("Pause Monitoring", trayManager.getPauseResumeLabel());
+            assertEquals("Monitoring: ON", trayManager.getPauseResumeLabel());
         }
 
         // Final state verification

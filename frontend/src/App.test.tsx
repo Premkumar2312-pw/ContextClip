@@ -60,6 +60,9 @@ describe('ContextClip Authentication and Application UI Tests', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     authStorage.clearAuth();
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.clear) {
+      sessionStorage.clear();
+    }
     vi.spyOn(analyticsApi, 'fetchAllAnalytics').mockResolvedValue(mockAnalyticsData);
     vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue(mockClipboardEntries);
     vi.spyOn(clipboardApi, 'searchClipboard').mockResolvedValue(mockClipboardEntries);
@@ -869,7 +872,16 @@ function test() {
       });
       expect(screen.getByText('You have Docker and Git snippets.')).toBeInTheDocument();
 
-      // Navigate away to Clipboard History page
+      // Navigate through full SPA circuit: Dashboard -> Analytics -> Search -> Clipboard
+      fireEvent.click(screen.getByRole('button', { name: /dashboard navigation/i }));
+      await waitFor(() => expect(screen.getByText('Dashboard Overview')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /analytics navigation/i }));
+      await waitFor(() => expect(screen.getByText('Clipboard Analytics')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /search navigation/i }));
+      await waitFor(() => expect(screen.getByRole('heading', { name: /search clipboard/i })).toBeInTheDocument());
+
       fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
       await waitFor(() => expect(screen.getByTestId('clipboard-items-list')).toBeInTheDocument());
 
@@ -1119,6 +1131,85 @@ function test() {
         screen.getByText(/Backend is currently offline. Please ensure the server is running and try again./i)
       ).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Retry Connection/i })).toBeInTheDocument();
+    });
+
+    it('53. Deleting an entry directly from Dashboard removes it immediately and refreshes metrics', async () => {
+      const deleteSpy = vi.spyOn(clipboardApi, 'deleteClipboardEntry').mockResolvedValue(undefined);
+      const fetchAnalyticsSpy = vi.spyOn(analyticsApi, 'fetchAllAnalytics');
+
+      render(<App />);
+      // Dashboard is default route, loads recent entries (id: 11, 9, 3)
+      await waitFor(() => {
+        expect(screen.getByTestId('clipboard-entry-11')).toBeInTheDocument();
+      });
+
+      // Click delete on entry 11 from Dashboard
+      fireEvent.click(screen.getByTestId('delete-entry-11'));
+      expect(screen.getByTestId('delete-confirm-modal')).toBeInTheDocument();
+
+      // Confirm deletion
+      fireEvent.click(screen.getByTestId('delete-modal-confirm'));
+
+      await waitFor(() => {
+        expect(deleteSpy).toHaveBeenCalledWith(11);
+      });
+
+      // Entry 11 should be removed immediately from Dashboard without reload
+      await waitFor(() => {
+        expect(screen.queryByTestId('clipboard-entry-11')).toBeNull();
+      });
+
+      // Analytics refresh was triggered
+      expect(fetchAnalyticsSpy).toHaveBeenCalled();
+    });
+
+    it('54. Live entry synchronization updates clipboard list without full-page reload', async () => {
+      let currentEntries = [...mockClipboardEntries];
+      vi.spyOn(clipboardApi, 'getClipboardEntries').mockImplementation(async () => currentEntries);
+
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /clipboard navigation/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('clipboard-entry-11')).toBeInTheDocument();
+        expect(screen.queryByTestId('clipboard-entry-999')).toBeNull();
+      });
+
+      // Simulate Desktop Agent capturing a new entry in the background
+      const newCapturedEntry = {
+        id: 999,
+        content: 'PHASE19_LIVE_REFRESH_TEST_12345',
+        capturedAt: '2026-09-12T10:00:00Z',
+        type: 'TEXT',
+        technology: 'UNKNOWN',
+        category: 'GENERAL',
+      };
+      currentEntries = [newCapturedEntry, ...mockClipboardEntries];
+
+      // Trigger user refresh or interval poll
+      fireEvent.click(screen.getByRole('button', { name: /refresh clipboard/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('clipboard-entry-999')).toBeInTheDocument();
+        expect(screen.getByText('PHASE19_LIVE_REFRESH_TEST_12345')).toBeInTheDocument();
+      });
+    });
+
+    it('55. Analytics displays long classification labels without destructive clipping', async () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /analytics navigation/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Clipboard Analytics')).toBeInTheDocument();
+      });
+
+      // Verify long labels render with full text
+      expect(screen.getByText('TERMINAL_COMMAND')).toBeInTheDocument();
+      expect(screen.getByText('DOCKER')).toBeInTheDocument();
+      expect(screen.getByText('DEVOPS')).toBeInTheDocument();
+      expect(screen.getByText('Entries by Content Type')).toBeInTheDocument();
+      expect(screen.getByText('Entries by Technology')).toBeInTheDocument();
+      expect(screen.getByText('Entries by Category')).toBeInTheDocument();
     });
   });
 });

@@ -29,27 +29,117 @@ export interface AskClipboardContextType {
 
 const AskClipboardContext = createContext<AskClipboardContextType | undefined>(undefined);
 
+const ASK_STORAGE_KEY = 'contextclip_ask_session';
+
+interface PersistedAskSession {
+  question: string;
+  result: ClipboardAskResponse | null;
+  state: AskState;
+  errorMessage: string | null;
+  selectedEntryId?: number | null;
+  selectedEntry?: ClipboardEntry | null;
+}
+
+const loadSavedSession = (): PersistedAskSession => {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const raw = window.sessionStorage.getItem(ASK_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          question: typeof parsed.question === 'string' ? parsed.question : '',
+          result: parsed.result || null,
+          state: parsed.state === 'loading' ? 'idle' : (parsed.state || 'idle'),
+          errorMessage: parsed.errorMessage || null,
+          selectedEntryId: parsed.selectedEntryId ?? null,
+          selectedEntry: parsed.selectedEntry ?? null,
+        };
+      }
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  return {
+    question: '',
+    result: null,
+    state: 'idle',
+    errorMessage: null,
+    selectedEntryId: null,
+    selectedEntry: null,
+  };
+};
+
 export const AskClipboardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [question, setQuestion] = useState<string>('');
+  const initialSession = loadSavedSession();
+  const [question, setQuestionState] = useState<string>(initialSession.question);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [state, setState] = useState<AskState>('idle');
-  const [result, setResult] = useState<ClipboardAskResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [state, setStateValue] = useState<AskState>(initialSession.state);
+  const [result, setResultState] = useState<ClipboardAskResponse | null>(initialSession.result);
+  const [errorMessage, setErrorMessageState] = useState<string | null>(initialSession.errorMessage);
   const [copiedAnswer, setCopiedAnswer] = useState<boolean>(false);
   const [historyEntries, setHistoryEntries] = useState<ClipboardEntry[]>([]);
   const [entriesLoaded, setEntriesLoaded] = useState<boolean>(false);
-  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<ClipboardEntry | null>(null);
+  const [selectedEntryId, setSelectedEntryIdState] = useState<number | null>(initialSession.selectedEntryId ?? null);
+  const [selectedEntry, setSelectedEntryState] = useState<ClipboardEntry | null>(initialSession.selectedEntry ?? null);
+
+  const persist = (updated: Partial<PersistedAskSession>) => {
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const current = loadSavedSession();
+        const merged = { ...current, ...updated };
+        window.sessionStorage.setItem(ASK_STORAGE_KEY, JSON.stringify(merged));
+      }
+    } catch {
+      // Ignore storage write errors
+    }
+  };
+
+  const setQuestion = (q: string) => {
+    setQuestionState(q);
+    persist({ question: q });
+  };
+
+  const setState = (s: AskState) => {
+    setStateValue(s);
+    persist({ state: s });
+  };
+
+  const setResult = (r: ClipboardAskResponse | null) => {
+    setResultState(r);
+    persist({ result: r });
+  };
+
+  const setErrorMessage = (msg: string | null) => {
+    setErrorMessageState(msg);
+    persist({ errorMessage: msg });
+  };
+
+  const setSelectedEntryId = (id: number | null) => {
+    setSelectedEntryIdState(id);
+    persist({ selectedEntryId: id });
+  };
+
+  const setSelectedEntry = (entry: ClipboardEntry | null) => {
+    setSelectedEntryState(entry);
+    persist({ selectedEntry: entry });
+  };
 
   const clearAskState = () => {
-    setQuestion('');
+    setQuestionState('');
     setValidationError(null);
-    setState('idle');
-    setResult(null);
-    setErrorMessage(null);
+    setStateValue('idle');
+    setResultState(null);
+    setErrorMessageState(null);
     setCopiedAnswer(false);
-    setSelectedEntryId(null);
-    setSelectedEntry(null);
+    setSelectedEntryIdState(null);
+    setSelectedEntryState(null);
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        window.sessionStorage.removeItem(ASK_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage remove errors
+    }
   };
 
   return (

@@ -51,6 +51,9 @@ public class BackendClient {
     /** Cached JWT — held in heap memory only, never persisted. */
     private volatile String cachedToken = null;
 
+    /** Local classifier — classifies content before POST so backend can skip re-classification. */
+    private final ContentClassifier contentClassifier = new ContentClassifier();
+
     // -------------------------------------------------------------------------
     // Result type for send operations
     // -------------------------------------------------------------------------
@@ -166,18 +169,21 @@ public class BackendClient {
             return SendResult.connFailure();
         }
 
+        // Phase 19: classify locally before sending to backend
+        ContentClassifier.Result classification = contentClassifier.classify(content);
+
         // Ensure we have a token before the first attempt
         if (cachedToken == null && hasCredentials()) {
             cachedToken = authenticate();
         }
 
-        SendResult result = postClipboard(content, cachedToken);
+        SendResult result = postClipboard(content, cachedToken, classification);
 
         if (!result.isSuccess() && result.errorType == SendResult.ErrorType.HTTP_401 && hasCredentials()) {
             // Token may have expired — re-authenticate and retry exactly once
             cachedToken = authenticate();
             if (cachedToken != null) {
-                result = postClipboard(content, cachedToken);
+                result = postClipboard(content, cachedToken, classification);
             }
         }
 
@@ -275,7 +281,35 @@ public class BackendClient {
      * success (with backend-assigned ID) or the specific failure type.
      */
     private SendResult postClipboard(String content, String token) {
-        String jsonPayload = "{\"content\":\"" + escapeJson(content) + "\"}";
+        return postClipboard(content, token, null);
+    }
+
+    /**
+     * Sends a single clipboard POST with optional pre-classification metadata.
+     */
+    private SendResult postClipboard(String content, String token, ContentClassifier.Result classification) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"content\":\"").append(escapeJson(content)).append("\"");
+        if (classification != null) {
+            json.append(",\"type\":\"").append(escapeJson(classification.type)).append("\"");
+            json.append(",\"technology\":\"").append(escapeJson(classification.technology)).append("\"");
+            json.append(",\"category\":\"").append(escapeJson(classification.category)).append("\"");
+            if (classification.language != null) {
+                json.append(",\"language\":\"").append(escapeJson(classification.language)).append("\"");
+            }
+            if (classification.technologies != null) {
+                json.append(",\"technologies\":\"").append(escapeJson(classification.technologies)).append("\"");
+            }
+            if (classification.categories != null) {
+                json.append(",\"categories\":\"").append(escapeJson(classification.categories)).append("\"");
+            }
+            json.append(",\"sensitive\":").append(classification.sensitive);
+            json.append(",\"confidence\":").append(classification.confidence);
+        }
+        json.append("}");
+        String jsonPayload = json.toString();
+
+
 
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder()

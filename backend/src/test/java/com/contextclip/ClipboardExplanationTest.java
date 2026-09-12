@@ -84,7 +84,7 @@ class ClipboardExplanationTest {
 
         String capturedPrompt = promptCaptor.getValue();
         assertThat(capturedPrompt).contains("docker compose up --build");
-        assertThat(capturedPrompt).contains("TERMINAL_COMMAND");
+        assertThat(capturedPrompt).contains("COMMAND");
         assertThat(capturedPrompt).contains("DOCKER");
         assertThat(capturedPrompt).contains("DEVOPS");
     }
@@ -93,7 +93,7 @@ class ClipboardExplanationTest {
     void testBuildExplanationPromptMethod() {
         String prompt = clipboardService.buildExplanationPrompt(savedEntry);
         assertThat(prompt).contains("docker compose up --build");
-        assertThat(prompt).contains("Detected Type: TERMINAL_COMMAND");
+        assertThat(prompt).contains("Detected Type: COMMAND");
         assertThat(prompt).contains("Detected Technology: DOCKER");
         assertThat(prompt).contains("Detected Category: DEVOPS");
     }

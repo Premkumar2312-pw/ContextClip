@@ -1,29 +1,28 @@
 package com.contextclip;
 
-import com.contextclip.client.AiServiceClient;
-import com.contextclip.exception.AiServiceException;
-import com.contextclip.model.ClipboardEntry;
-import com.contextclip.service.ClipboardService;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import org.springframework.security.test.context.support.WithMockUser;
+import com.contextclip.client.AiServiceClient;
+import com.contextclip.exception.AiServiceException;
+import com.contextclip.model.ClipboardEntry;
+import com.contextclip.service.ClipboardService;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -92,7 +91,7 @@ class ClipboardSummarizationTest {
 
         String capturedPrompt = promptCaptor.getValue();
         assertThat(capturedPrompt).contains("git push -u origin main");
-        assertThat(capturedPrompt).contains("TERMINAL_COMMAND");
+        assertThat(capturedPrompt).contains("COMMAND");
         assertThat(capturedPrompt).contains("GIT");
         assertThat(capturedPrompt).contains("DEVOPS");
     }
@@ -101,7 +100,7 @@ class ClipboardSummarizationTest {
     void testBuildSummarizationPromptMethod() {
         String prompt = clipboardService.buildSummarizationPrompt(savedEntry);
         assertThat(prompt).contains("git push -u origin main");
-        assertThat(prompt).contains("Detected Type: TERMINAL_COMMAND");
+        assertThat(prompt).contains("Detected Type: COMMAND");
         assertThat(prompt).contains("Detected Technology: GIT");
         assertThat(prompt).contains("Detected Category: DEVOPS");
         assertThat(prompt).contains("Summarize the following clipboard content");

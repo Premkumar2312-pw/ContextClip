@@ -1,6 +1,9 @@
 package com.contextclip.model;
 
+import java.time.Instant;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,10 +12,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-
-import java.time.Instant;
 
 @Entity
 @Table(name = "clipboard_entries")
@@ -37,6 +39,22 @@ public class ClipboardEntry {
     @Column(name = "category", nullable = false)
     private String category;
 
+    // Phase 19 — multi-label classification fields (nullable for backward compat with pre-Phase-19 entries)
+    @Column(name = "language")
+    private String language;
+
+    @Column(name = "technologies", length = 1000)
+    private String technologies;   // comma-joined list, e.g. "SPRING_BOOT,JAVA"
+
+    @Column(name = "categories", length = 1000)
+    private String categories;     // comma-joined list, e.g. "DEVOPS,CONFIGURATION"
+
+    @Column(name = "sensitive")
+    private Boolean sensitive;
+
+    @Column(name = "confidence")
+    private Float confidence;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
@@ -59,6 +77,12 @@ public class ClipboardEntry {
         this.type = type != null ? type : "TEXT";
         this.technology = technology != null ? technology : "UNKNOWN";
         this.category = category != null ? category : "GENERAL";
+        this.categories = this.category;
+        if (this.technology != null && !this.technology.equals("UNKNOWN")) {
+            this.technologies = this.technology;
+        }
+        this.sensitive = false;
+        this.confidence = 1.0f;
         this.user = user;
         this.capturedAt = Instant.now();
     }
@@ -74,6 +98,12 @@ public class ClipboardEntry {
         this.type = type != null ? type : "TEXT";
         this.technology = technology != null ? technology : "UNKNOWN";
         this.category = category != null ? category : "GENERAL";
+        this.categories = this.category;
+        if (this.technology != null && !this.technology.equals("UNKNOWN")) {
+            this.technologies = this.technology;
+        }
+        this.sensitive = false;
+        this.confidence = 1.0f;
         this.user = user;
     }
 
@@ -90,6 +120,34 @@ public class ClipboardEntry {
         }
         if (this.category == null) {
             this.category = "GENERAL";
+        }
+        if (this.technologies == null && this.technology != null && !this.technology.equals("UNKNOWN")) {
+            this.technologies = this.technology;
+        }
+        if (this.categories == null && this.category != null) {
+            this.categories = this.category;
+        }
+        if (this.sensitive == null) {
+            this.sensitive = false;
+        }
+        if (this.confidence == null) {
+            this.confidence = 1.0f;
+        }
+    }
+
+    @PostLoad
+    protected void onPostLoad() {
+        if (this.categories == null && this.category != null) {
+            this.categories = this.category;
+        }
+        if (this.technologies == null && this.technology != null && !this.technology.equals("UNKNOWN")) {
+            this.technologies = this.technology;
+        }
+        if (this.sensitive == null) {
+            this.sensitive = false;
+        }
+        if (this.confidence == null) {
+            this.confidence = 1.0f;
         }
     }
 
@@ -147,5 +205,51 @@ public class ClipboardEntry {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    // Phase 19 getters/setters
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language;
+    }
+
+    public String getTechnologies() {
+        return technologies;
+    }
+
+    public void setTechnologies(String technologies) {
+        this.technologies = technologies;
+    }
+
+    public String getCategories() {
+        return categories;
+    }
+
+    public void setCategories(String categories) {
+        this.categories = categories;
+    }
+
+    public Boolean getSensitive() {
+        return sensitive;
+    }
+
+    public Boolean isSensitive() {
+        return sensitive;
+    }
+
+    public void setSensitive(Boolean sensitive) {
+        this.sensitive = sensitive;
+    }
+
+    public Float getConfidence() {
+        return confidence;
+    }
+
+    public void setConfidence(Float confidence) {
+        this.confidence = confidence;
     }
 }

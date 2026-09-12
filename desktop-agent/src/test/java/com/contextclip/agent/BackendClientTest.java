@@ -71,7 +71,10 @@ class BackendClientTest {
 
         assertTrue(result.isSuccess());
         assertEquals("42", result.backendId);
-        assertEquals("{\"content\":\"SELECT * FROM users;\"}", receivedBody.get());
+        assertTrue(receivedBody.get().contains("\"content\":\"SELECT * FROM users;\""));
+        assertTrue(receivedBody.get().contains("\"type\":\"SQL\""));
+        assertTrue(receivedBody.get().contains("\"technology\":\"SQL\""));
+        assertTrue(receivedBody.get().contains("\"category\":\"DATABASE\""));
     }
 
     @Test

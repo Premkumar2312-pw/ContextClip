@@ -563,7 +563,7 @@ button, input, select, textarea {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -579,6 +579,7 @@ button, input, select, textarea {
   transition: all var(--transition-base);
   position: relative;
   overflow: hidden;
+  min-width: 0;
 }
 
 .metric-card::before {
@@ -633,7 +634,16 @@ button, input, select, textarea {
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.35px;
-  line-height: 1.2;
+  line-height: 1.25;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.metric-value--long {
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
 }
 
 .metric-sub {
@@ -913,6 +923,44 @@ button, input, select, textarea {
   background-color: #F8FAFC;
   color: var(--text-muted);
   border: 1px solid var(--border-subtle);
+}
+
+/* Phase 19 — enriched classification badges */
+.entry-classification-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.badge-sensitive {
+  background-color: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+  font-weight: 700;
+}
+
+.badge-language {
+  background-color: #EDE9FE;
+  color: #5B21B6;
+  border: 1px solid #C4B5FD;
+}
+
+.badge-tech-label {
+  background-color: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #6EE7B7;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.badge-tech-overflow {
+  background-color: #F1F5F9;
+  color: #64748B;
+  border: 1px solid #CBD5E1;
+  text-transform: none;
+  font-style: italic;
 }
 
 .entry-timestamp {
@@ -1970,9 +2018,10 @@ button, input, select, textarea {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .ranked-item-name--muted {

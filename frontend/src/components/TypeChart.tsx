@@ -30,19 +30,20 @@ export const TypeChart: React.FC<TypeChartProps> = ({ data }) => {
         {data.length === 0 ? (
           <p className="metric-sub">No type data available</p>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={260}>
             <BarChart
               data={data}
-              margin={{ top: 10, right: 10, left: -20, bottom: 20 }}
+              margin={{ top: 10, right: 10, left: -20, bottom: 40 }}
             >
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 11, fill: '#64748B' }}
+                tick={{ fontSize: 10.5, fill: '#64748B' }}
                 tickLine={false}
                 axisLine={{ stroke: '#E2E8F0' }}
                 interval={0}
-                angle={-15}
+                angle={-20}
                 textAnchor="end"
+                height={50}
               />
               <YAxis
                 allowDecimals={false}

@@ -65,6 +65,45 @@ public class ClipboardService {
                 classification.category(),
                 user
         );
+        // Phase 19 — populate multi-label fields
+        entry.setLanguage(classification.language());
+        String techsJoined = classification.technologies().isEmpty()
+                ? (!classification.technology().equals("UNKNOWN") ? classification.technology() : null)
+                : String.join(",", classification.technologies());
+        entry.setTechnologies(techsJoined);
+        String catsJoined = classification.categories().isEmpty()
+                ? classification.category()
+                : String.join(",", classification.categories());
+        entry.setCategories(catsJoined);
+        entry.setSensitive(classification.sensitive());
+        entry.setConfidence(classification.confidence());
+        return clipboardRepository.save(entry);
+    }
+
+    /**
+     * Saves a clipboard entry using pre-classified metadata provided by the Desktop Agent.
+     * Falls back to running the backend classifier when the request has no classification.
+     */
+    public ClipboardEntry save(String content, com.contextclip.dto.ClipboardRequest request, User user) {
+        if (request == null || !request.hasClassification()) {
+            return save(content, user);
+        }
+        // Trust the agent's pre-classified values
+        String type     = request.getType()       != null ? request.getType()       : "PLAIN_TEXT";
+        String tech     = request.getTechnology()  != null ? request.getTechnology()  : "UNKNOWN";
+        String cat      = request.getCategory()    != null ? request.getCategory()    : "GENERAL";
+        ClipboardEntry entry = new ClipboardEntry(content, type, tech, cat, user);
+        entry.setLanguage(request.getLanguage());
+        String techs = (request.getTechnologies() != null && !request.getTechnologies().isBlank())
+                ? request.getTechnologies()
+                : (!tech.equals("UNKNOWN") ? tech : null);
+        entry.setTechnologies(techs);
+        String cats = (request.getCategories() != null && !request.getCategories().isBlank())
+                ? request.getCategories()
+                : cat;
+        entry.setCategories(cats);
+        entry.setSensitive(request.getSensitive() != null ? request.getSensitive() : false);
+        entry.setConfidence(request.getConfidence() != null ? request.getConfidence() : 1.0f);
         return clipboardRepository.save(entry);
     }
 

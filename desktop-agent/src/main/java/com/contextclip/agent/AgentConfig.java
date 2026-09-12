@@ -250,6 +250,53 @@ public class AgentConfig {
         }
     }
 
+    /**
+     * Checks whether clipboard monitoring is enabled by the user.
+     * Defaults to true (ON) unless explicitly configured as false/off.
+     */
+    public static boolean isMonitoringEnabled() {
+        Properties userProps = loadPropertiesFile(getUserConfigFile());
+        if (userProps != null) {
+            String val = userProps.getProperty("monitoring.enabled");
+            if (val == null) {
+                val = userProps.getProperty("agent.monitoring.enabled");
+            }
+            if (val != null && !val.isBlank()) {
+                return Boolean.parseBoolean(val.trim());
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Persists the user's monitoring preference to the local user configuration file.
+     * Survives restarts: ON -> restart -> ON, OFF -> restart -> OFF.
+     */
+    public static boolean saveMonitoringEnabled(boolean enabled) {
+        try {
+            File file = getUserConfigFile();
+            File parent = file.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            Properties props = new Properties();
+            if (file.exists()) {
+                try (FileInputStream in = new FileInputStream(file)) {
+                    props.load(in);
+                } catch (Exception ignored) {
+                }
+            }
+            props.setProperty("monitoring.enabled", String.valueOf(enabled));
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                props.store(out, "ContextClip Desktop Agent Configuration");
+            }
+            return true;
+        } catch (Exception e) {
+            System.err.println("Failed to save monitoring preference: " + e.getMessage());
+            return false;
+        }
+    }
+
     private static Properties loadPropertiesFile(File file) {
         if (file != null && file.exists() && file.isFile()) {
             Properties props = new Properties();

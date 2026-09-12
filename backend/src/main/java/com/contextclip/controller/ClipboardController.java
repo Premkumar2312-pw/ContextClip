@@ -68,7 +68,7 @@ public class ClipboardController {
         }
 
         User user = getAuthenticatedUser(authentication);
-        ClipboardEntry entry = clipboardService.save(request.getContent(), user);
+        ClipboardEntry entry = clipboardService.save(request.getContent(), request, user);
         ClipboardResponse response = new ClipboardResponse(entry.getId(), "RECEIVED");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

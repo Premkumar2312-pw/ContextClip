@@ -5,6 +5,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
+
 import javax.imageio.ImageIO;
 
 /**
@@ -52,3 +53,4 @@ public class IconGenerator {
         System.out.println("Generated icon at: " + outputFile.getAbsolutePath());
     }
 }
+

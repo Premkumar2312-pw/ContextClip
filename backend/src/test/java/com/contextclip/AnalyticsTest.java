@@ -83,7 +83,7 @@ class AnalyticsTest {
         mockMvc.perform(get("/api/analytics/overview"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalEntries").value(5))
-                .andExpect(jsonPath("$.mostUsedType").value("TERMINAL_COMMAND"))
+                .andExpect(jsonPath("$.mostUsedType").value("COMMAND"))
                 .andExpect(jsonPath("$.mostUsedTechnology").value("DOCKER"))
                 .andExpect(jsonPath("$.mostUsedCategory").value("DEVOPS"));
 
@@ -91,7 +91,7 @@ class AnalyticsTest {
         mockMvc.perform(get("/api/analytics/by-type"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].name").value("TERMINAL_COMMAND"))
+                .andExpect(jsonPath("$[0].name").value("COMMAND"))
                 .andExpect(jsonPath("$[0].count").value(4))
                 .andExpect(jsonPath("$[1].name").value("SQL"))
                 .andExpect(jsonPath("$[1].count").value(1));

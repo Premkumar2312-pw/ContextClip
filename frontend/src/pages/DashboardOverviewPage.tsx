@@ -47,6 +47,25 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({
     };
   }, [data]);
 
+  useEffect(() => {
+    const handleDeletedEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: number }>;
+      if (customEvent.detail?.id) {
+        setRecentEntries((prev) => prev.filter((entry) => entry.id !== customEvent.detail.id));
+        refresh();
+      }
+    };
+    window.addEventListener('contextclip:entry-deleted', handleDeletedEvent);
+    return () => {
+      window.removeEventListener('contextclip:entry-deleted', handleDeletedEvent);
+    };
+  }, [refresh]);
+
+  const handleDeleteRecent = (id: number) => {
+    setRecentEntries((prev) => prev.filter((entry) => entry.id !== id));
+    refresh();
+  };
+
   const isEmpty =
     data &&
     data.overview.totalEntries === 0 &&
@@ -111,7 +130,7 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({
 
                 <div className="clipboard-list">
                   {recentEntries.map((entry) => (
-                    <ClipboardItem key={entry.id} entry={entry} />
+                    <ClipboardItem key={entry.id} entry={entry} onDelete={handleDeleteRecent} />
                   ))}
                 </div>
               </div>

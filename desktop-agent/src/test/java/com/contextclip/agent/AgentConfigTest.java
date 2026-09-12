@@ -93,4 +93,29 @@ class AgentConfigTest {
         assertEquals(3, summary.partsCount);
         assertEquals(mockJwt.length(), summary.tokenLength);
     }
+
+    @Test
+    void testMonitoringPreferencePersistence() throws Exception {
+        File tempConfigFile = File.createTempFile("agent-monitoring-test", ".properties");
+        tempConfigFile.deleteOnExit();
+        AgentConfig.setTestUserConfigFile(tempConfigFile);
+
+        try {
+            // Default should be true (ON)
+            assertTrue(AgentConfig.isMonitoringEnabled(), "Default monitoring state must be ON");
+
+            // Save OFF
+            boolean savedOff = AgentConfig.saveMonitoringEnabled(false);
+            assertTrue(savedOff);
+            assertFalse(AgentConfig.isMonitoringEnabled(), "Monitoring must be OFF after saving false");
+
+            // Save ON
+            boolean savedOn = AgentConfig.saveMonitoringEnabled(true);
+            assertTrue(savedOn);
+            assertTrue(AgentConfig.isMonitoringEnabled(), "Monitoring must be ON after saving true");
+        } finally {
+            AgentConfig.setTestUserConfigFile(null);
+            tempConfigFile.delete();
+        }
+    }
 }
