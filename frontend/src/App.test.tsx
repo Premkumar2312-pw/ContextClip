@@ -63,6 +63,9 @@ describe('ContextClip Authentication and Application UI Tests', () => {
     if (typeof sessionStorage !== 'undefined' && sessionStorage.clear) {
       sessionStorage.clear();
     }
+    if (typeof localStorage !== 'undefined' && localStorage.clear) {
+      localStorage.clear();
+    }
     vi.spyOn(analyticsApi, 'fetchAllAnalytics').mockResolvedValue(mockAnalyticsData);
     vi.spyOn(clipboardApi, 'getClipboardEntries').mockResolvedValue(mockClipboardEntries);
     vi.spyOn(clipboardApi, 'searchClipboard').mockResolvedValue(mockClipboardEntries);
@@ -750,7 +753,7 @@ function test() {
 
       const chip = screen.getByTestId('ask-source-42');
       expect(chip).toHaveTextContent('#42');
-      expect(chip).toHaveTextContent('DOCKER');
+      expect(chip).toHaveTextContent('Docker');
       expect(chip).toHaveTextContent('docker compose up -d');
     });
 
@@ -1204,9 +1207,9 @@ function test() {
       });
 
       // Verify long labels render with full text
-      expect(screen.getByText('TERMINAL_COMMAND')).toBeInTheDocument();
-      expect(screen.getByText('DOCKER')).toBeInTheDocument();
-      expect(screen.getByText('DEVOPS')).toBeInTheDocument();
+      expect(screen.getByText('Terminal Command')).toBeInTheDocument();
+      expect(screen.getAllByText('Docker').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('DevOps').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('Entries by Content Type')).toBeInTheDocument();
       expect(screen.getByText('Entries by Technology')).toBeInTheDocument();
       expect(screen.getByText('Entries by Category')).toBeInTheDocument();

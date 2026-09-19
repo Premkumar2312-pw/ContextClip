@@ -3,6 +3,7 @@ import { ClipboardEntry } from '../types/clipboard';
 import { deleteClipboardEntry, explainClipboardEntry, summarizeClipboardEntry } from '../api/clipboardApi';
 import { MarkdownView } from './MarkdownView';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { formatLabel } from '../utils/displayLabels';
 import {
   Sparkles,
   FileText,
@@ -162,44 +163,60 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
       <div className="clipboard-card-header">
         <div className="entry-meta-badges">
           <span className="badge badge-id" title="Database reference ID">Entry #{entry.id}</span>
-          <span className="badge badge-type">{entry.type || 'TEXT'}</span>
-          <span className="badge badge-tech">{entry.technology || 'UNKNOWN'}</span>
-          <span className="badge badge-cat">{entry.category || 'GENERAL'}</span>
+          <span className="badge-meta-dot" aria-hidden="true">·</span>
+          <span className="badge badge-type">{formatLabel(entry.type) || 'Text'}</span>
+          {entry.technology && entry.technology.toUpperCase() !== 'UNKNOWN' && (
+            <>
+              <span className="badge-meta-dot" aria-hidden="true">·</span>
+              <span className="badge badge-tech">{formatLabel(entry.technology)}</span>
+            </>
+          )}
+          {entry.category && entry.category.toUpperCase() !== 'UNKNOWN' && formatLabel(entry.category).toLowerCase() !== formatLabel(entry.technology).toLowerCase() && (
+            <>
+              <span className="badge-meta-dot" aria-hidden="true">·</span>
+              <span className="badge badge-cat">{formatLabel(entry.category)}</span>
+            </>
+          )}
+          {entry.sensitive && (
+            <span className="badge badge-sensitive" title="Contains sensitive data (JWT, API key, password, or private key)">
+              🔒 SENSITIVE
+            </span>
+          )}
+          {/* Phase 19 — render only genuinely unique extra technologies */}
+          {(() => {
+            const primaryTech = (formatLabel(entry.technology) || '').toLowerCase();
+            const primaryType = (formatLabel(entry.type) || '').toLowerCase();
+            const primaryCat = (formatLabel(entry.category) || '').toLowerCase();
+
+            const extraTechs = (entry.technologies || '')
+              .split(',')
+              .map((t) => t.trim())
+              .filter(Boolean)
+              .filter((t) => {
+                const formatted = formatLabel(t).toLowerCase();
+                return formatted !== primaryTech && formatted !== primaryType && formatted !== primaryCat;
+              });
+
+            if (extraTechs.length === 0) return null;
+            const visible = extraTechs.slice(0, 2);
+            const overflow = extraTechs.length - visible.length;
+
+            return (
+              <>
+                {visible.map((tech) => (
+                  <span key={tech} className="badge badge-tech-label" title={tech}>
+                    {formatLabel(tech)}
+                  </span>
+                ))}
+                {overflow > 0 && (
+                  <span className="badge badge-tech-overflow" title={extraTechs.slice(2).join(', ')}>
+                    +{overflow} more
+                  </span>
+                )}
+              </>
+            );
+          })()}
         </div>
-        {/* Phase 19 — enriched classification badges */}
-        {(entry.language || entry.technologies || entry.sensitive) && (
-          <div className="entry-classification-badges">
-            {entry.sensitive && (
-              <span className="badge badge-sensitive" title="Contains sensitive data (JWT, API key, password, or private key)">
-                🔒 SENSITIVE
-              </span>
-            )}
-            {entry.language && (
-              <span className="badge badge-language" title={`Detected language: ${entry.language}`}>
-                {entry.language}
-              </span>
-            )}
-            {entry.technologies && (() => {
-              const techs = entry.technologies.split(',').map(t => t.trim()).filter(Boolean);
-              const visible = techs.slice(0, 3);
-              const overflow = techs.length - visible.length;
-              return (
-                <>
-                  {visible.map((tech) => (
-                    <span key={tech} className="badge badge-tech-label" title={tech}>
-                      {tech.replace(/_/g, ' ')}
-                    </span>
-                  ))}
-                  {overflow > 0 && (
-                    <span className="badge badge-tech-overflow" title={techs.slice(3).join(', ')}>
-                      +{overflow} more
-                    </span>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
         {formattedDate && (
           <span className="entry-timestamp" title={entry.capturedAt}>
             <Clock size={12} style={{ display: 'inline', marginRight: 4 }} />

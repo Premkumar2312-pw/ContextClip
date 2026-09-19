@@ -15,7 +15,9 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 }) => {
   const displayValue =
     value === null || value === undefined || value === '' ? '—' : value;
-  const isLongText = typeof displayValue === 'string' && displayValue.length > 10;
+  const isLongText =
+    typeof displayValue === 'string' &&
+    (displayValue.length >= 10 || (isNaN(Number(displayValue)) && displayValue.length > 7));
 
   return (
     <div className="metric-card">

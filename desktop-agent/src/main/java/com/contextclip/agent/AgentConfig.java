@@ -297,6 +297,49 @@ public class AgentConfig {
         }
     }
 
+    /**
+     * Checks whether Windows automatic startup preference is configured in agent.properties.
+     * Defaults to true if not explicitly configured.
+     */
+    public static boolean isStartupPreferenceEnabled() {
+        Properties userProps = loadPropertiesFile(getUserConfigFile());
+        if (userProps != null) {
+            String val = userProps.getProperty("startup.enabled");
+            if (val != null && !val.isBlank()) {
+                return Boolean.parseBoolean(val.trim());
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Persists the user's startup preference to agent.properties.
+     */
+    public static boolean saveStartupEnabled(boolean enabled) {
+        try {
+            File file = getUserConfigFile();
+            File parent = file.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            Properties props = new Properties();
+            if (file.exists()) {
+                try (FileInputStream in = new FileInputStream(file)) {
+                    props.load(in);
+                } catch (Exception ignored) {
+                }
+            }
+            props.setProperty("startup.enabled", String.valueOf(enabled));
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                props.store(out, "ContextClip Desktop Agent Configuration");
+            }
+            return true;
+        } catch (Exception e) {
+            System.err.println("Failed to save startup preference: " + e.getMessage());
+            return false;
+        }
+    }
+
     private static Properties loadPropertiesFile(File file) {
         if (file != null && file.exists() && file.isFile()) {
             Properties props = new Properties();

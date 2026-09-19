@@ -4,6 +4,7 @@ import { searchClipboard } from '../api/clipboardApi';
 import { ClipboardItem } from '../components/ClipboardItem';
 import { Search, RotateCcw, SearchX, X } from 'lucide-react';
 import { ErrorState } from '../components/ErrorState';
+import { formatLabel } from '../utils/displayLabels';
 
 const TYPE_OPTIONS = [
   'TEXT',
@@ -170,7 +171,7 @@ export const SearchPage: React.FC = () => {
                 <option value="">All Types</option>
                 {TYPE_OPTIONS.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {formatLabel(t)}
                   </option>
                 ))}
               </select>
@@ -190,7 +191,7 @@ export const SearchPage: React.FC = () => {
                 <option value="">All Technologies</option>
                 {TECH_OPTIONS.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {formatLabel(t)}
                   </option>
                 ))}
               </select>
@@ -210,7 +211,7 @@ export const SearchPage: React.FC = () => {
                 <option value="">All Categories</option>
                 {CATEGORY_OPTIONS.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    {formatLabel(c)}
                   </option>
                 ))}
               </select>

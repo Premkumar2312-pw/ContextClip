@@ -9,6 +9,7 @@ import {
   Cell,
 } from 'recharts';
 import { AnalyticsCountItem } from '../types/analytics';
+import { formatLabel } from '../utils/displayLabels';
 
 interface TypeChartProps {
   data: AnalyticsCountItem[];
@@ -33,26 +34,33 @@ export const TypeChart: React.FC<TypeChartProps> = ({ data }) => {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart
               data={data}
-              margin={{ top: 10, right: 10, left: -20, bottom: 40 }}
+              margin={{ top: 12, right: 16, left: 0, bottom: 55 }}
+              barCategoryGap="20%"
             >
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 10.5, fill: '#64748B' }}
+                tick={{ fontSize: 11, fill: '#64748B' }}
+                tickFormatter={(val: string) => formatLabel(val)}
                 tickLine={false}
                 axisLine={{ stroke: '#E2E8F0' }}
                 interval={0}
-                angle={-20}
+                angle={-25}
                 textAnchor="end"
-                height={50}
+                height={55}
+                dx={-4}
+                dy={4}
               />
               <YAxis
                 allowDecimals={false}
+                width={32}
                 tick={{ fontSize: 11, fill: '#64748B' }}
                 tickLine={false}
                 axisLine={{ stroke: '#E2E8F0' }}
               />
               <Tooltip
                 cursor={{ fill: '#F1F5F9' }}
+                formatter={(val: any) => [val ?? 0, 'Entries']}
+                labelFormatter={(label: any) => formatLabel(String(label || ''))}
                 contentStyle={{
                   backgroundColor: '#FFFFFF',
                   borderColor: '#E2E8F0',
@@ -61,7 +69,7 @@ export const TypeChart: React.FC<TypeChartProps> = ({ data }) => {
                   fontSize: '12px',
                 }}
               />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={48}>
                 {data.map((_, index) => (
                   <Cell
                     key={`cell-${index}`}

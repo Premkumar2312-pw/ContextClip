@@ -2,6 +2,7 @@ import React from 'react';
 import { AnalyticsOverview } from '../types/analytics';
 import { MetricCard } from './MetricCard';
 import { FileText, Cpu, FolderGit2, Hash } from 'lucide-react';
+import { formatLabel } from '../utils/displayLabels';
 
 interface OverviewMetricsProps {
   overview: AnalyticsOverview;
@@ -20,19 +21,19 @@ export const OverviewMetrics: React.FC<OverviewMetricsProps> = ({
       />
       <MetricCard
         title="Top Technology"
-        value={overview.mostUsedTechnology}
+        value={formatLabel(overview.mostUsedTechnology) || 'None'}
         subtext="Most active ecosystem/tool"
         icon={<Cpu size={18} />}
       />
       <MetricCard
         title="Top Content Type"
-        value={overview.mostUsedType}
+        value={formatLabel(overview.mostUsedType) || 'None'}
         subtext="Dominant classification"
         icon={<FileText size={18} />}
       />
       <MetricCard
         title="Top Category"
-        value={overview.mostUsedCategory}
+        value={formatLabel(overview.mostUsedCategory) || 'None'}
         subtext="Primary workflow domain"
         icon={<FolderGit2 size={18} />}
       />

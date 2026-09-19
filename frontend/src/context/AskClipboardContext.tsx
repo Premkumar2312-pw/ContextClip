@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { ClipboardAskResponse, ClipboardEntry } from '../types/clipboard';
+import { useAuth } from '../auth/AuthContext';
 
 export type AskState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -29,31 +30,38 @@ export interface AskClipboardContextType {
 
 const AskClipboardContext = createContext<AskClipboardContextType | undefined>(undefined);
 
-const ASK_STORAGE_KEY = 'contextclip_ask_session';
+const LEGACY_STORAGE_KEY_V1 = 'contextclip_ask_session_v1';
+const LEGACY_STORAGE_KEY = 'contextclip_ask_session';
+
+const getStorageKey = (username?: string | null): string => {
+  return username ? `contextclip_ask_${username}` : 'contextclip_ask_anon';
+};
 
 interface PersistedAskSession {
+  version: number;
+  username: string;
   question: string;
   result: ClipboardAskResponse | null;
-  state: AskState;
-  errorMessage: string | null;
-  selectedEntryId?: number | null;
-  selectedEntry?: ClipboardEntry | null;
 }
 
-const loadSavedSession = (): PersistedAskSession => {
+const loadSavedSession = (username?: string | null): { question: string; result: ClipboardAskResponse | null; state: AskState } => {
   try {
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      const raw = window.sessionStorage.getItem(ASK_STORAGE_KEY);
+    if (typeof window !== 'undefined') {
+      const key = getStorageKey(username);
+      let raw = window.localStorage?.getItem(key);
+      if (!raw && !username) {
+        raw = window.localStorage?.getItem(LEGACY_STORAGE_KEY_V1) || window.sessionStorage?.getItem(LEGACY_STORAGE_KEY);
+      }
       if (raw) {
         const parsed = JSON.parse(raw);
-        return {
-          question: typeof parsed.question === 'string' ? parsed.question : '',
-          result: parsed.result || null,
-          state: parsed.state === 'loading' ? 'idle' : (parsed.state || 'idle'),
-          errorMessage: parsed.errorMessage || null,
-          selectedEntryId: parsed.selectedEntryId ?? null,
-          selectedEntry: parsed.selectedEntry ?? null,
-        };
+        if (parsed && (parsed.username === username || (!username && !parsed.username))) {
+          const res = parsed.result || null;
+          return {
+            question: typeof parsed.question === 'string' ? parsed.question : '',
+            result: res,
+            state: res ? 'success' : 'idle',
+          };
+        }
       }
     }
   } catch {
@@ -63,68 +71,46 @@ const loadSavedSession = (): PersistedAskSession => {
     question: '',
     result: null,
     state: 'idle',
-    errorMessage: null,
-    selectedEntryId: null,
-    selectedEntry: null,
   };
 };
 
 export const AskClipboardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const initialSession = loadSavedSession();
+  const { user, isAuthenticated } = useAuth();
+  const currentUsername = user?.username || null;
+
+  const initialSession = loadSavedSession(currentUsername);
+  const sessionRef = useRef(initialSession);
+
   const [question, setQuestionState] = useState<string>(initialSession.question);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [state, setStateValue] = useState<AskState>(initialSession.state);
   const [result, setResultState] = useState<ClipboardAskResponse | null>(initialSession.result);
-  const [errorMessage, setErrorMessageState] = useState<string | null>(initialSession.errorMessage);
+  const [errorMessage, setErrorMessageState] = useState<string | null>(null);
   const [copiedAnswer, setCopiedAnswer] = useState<boolean>(false);
   const [historyEntries, setHistoryEntries] = useState<ClipboardEntry[]>([]);
   const [entriesLoaded, setEntriesLoaded] = useState<boolean>(false);
-  const [selectedEntryId, setSelectedEntryIdState] = useState<number | null>(initialSession.selectedEntryId ?? null);
-  const [selectedEntry, setSelectedEntryState] = useState<ClipboardEntry | null>(initialSession.selectedEntry ?? null);
+  const [selectedEntryId, setSelectedEntryIdState] = useState<number | null>(null);
+  const [selectedEntry, setSelectedEntryState] = useState<ClipboardEntry | null>(null);
 
-  const persist = (updated: Partial<PersistedAskSession>) => {
+  const persist = useCallback((q: string, res: ClipboardAskResponse | null) => {
     try {
-      if (typeof window !== 'undefined' && window.sessionStorage) {
-        const current = loadSavedSession();
-        const merged = { ...current, ...updated };
-        window.sessionStorage.setItem(ASK_STORAGE_KEY, JSON.stringify(merged));
+      if (typeof window !== 'undefined' && currentUsername) {
+        const key = getStorageKey(currentUsername);
+        const data: PersistedAskSession = {
+          version: 1,
+          username: currentUsername,
+          question: q,
+          result: res,
+        };
+        window.localStorage?.setItem(key, JSON.stringify(data));
       }
     } catch {
       // Ignore storage write errors
     }
-  };
+  }, [currentUsername]);
 
-  const setQuestion = (q: string) => {
-    setQuestionState(q);
-    persist({ question: q });
-  };
-
-  const setState = (s: AskState) => {
-    setStateValue(s);
-    persist({ state: s });
-  };
-
-  const setResult = (r: ClipboardAskResponse | null) => {
-    setResultState(r);
-    persist({ result: r });
-  };
-
-  const setErrorMessage = (msg: string | null) => {
-    setErrorMessageState(msg);
-    persist({ errorMessage: msg });
-  };
-
-  const setSelectedEntryId = (id: number | null) => {
-    setSelectedEntryIdState(id);
-    persist({ selectedEntryId: id });
-  };
-
-  const setSelectedEntry = (entry: ClipboardEntry | null) => {
-    setSelectedEntryState(entry);
-    persist({ selectedEntry: entry });
-  };
-
-  const clearAskState = () => {
+  const clearAskState = useCallback(() => {
+    sessionRef.current = { question: '', result: null, state: 'idle' };
     setQuestionState('');
     setValidationError(null);
     setStateValue('idle');
@@ -134,12 +120,83 @@ export const AskClipboardProvider: React.FC<{ children: ReactNode }> = ({ childr
     setSelectedEntryIdState(null);
     setSelectedEntryState(null);
     try {
-      if (typeof window !== 'undefined' && window.sessionStorage) {
-        window.sessionStorage.removeItem(ASK_STORAGE_KEY);
+      if (typeof window !== 'undefined') {
+        if (currentUsername) {
+          window.localStorage?.removeItem(getStorageKey(currentUsername));
+        }
+        window.localStorage?.removeItem(LEGACY_STORAGE_KEY_V1);
+        window.sessionStorage?.removeItem(LEGACY_STORAGE_KEY);
       }
     } catch {
       // Ignore storage remove errors
     }
+  }, [currentUsername]);
+
+  // Reset state whenever authenticated user changes or logs out
+  const prevUserRef = useRef(currentUsername);
+  useEffect(() => {
+    if (prevUserRef.current !== currentUsername) {
+      prevUserRef.current = currentUsername;
+      if (!isAuthenticated || !currentUsername) {
+        clearAskState();
+        setHistoryEntries([]);
+        setEntriesLoaded(false);
+      } else {
+        const restored = loadSavedSession(currentUsername);
+        sessionRef.current = restored;
+        setQuestionState(restored.question);
+        setResultState(restored.result);
+        setStateValue(restored.state);
+        setErrorMessageState(null);
+        setValidationError(null);
+        setHistoryEntries([]);
+        setEntriesLoaded(false);
+      }
+    }
+  }, [currentUsername, isAuthenticated, clearAskState]);
+
+  // Listen for logout / unauthorized events to immediately wipe state
+  useEffect(() => {
+    const handleLogout = () => {
+      clearAskState();
+      setHistoryEntries([]);
+      setEntriesLoaded(false);
+    };
+
+    window.addEventListener('contextclip:auth-logout', handleLogout);
+    window.addEventListener('auth:unauthorized', handleLogout);
+    return () => {
+      window.removeEventListener('contextclip:auth-logout', handleLogout);
+      window.removeEventListener('auth:unauthorized', handleLogout);
+    };
+  }, [clearAskState]);
+
+  const setQuestion = (q: string) => {
+    setQuestionState(q);
+    sessionRef.current.question = q;
+    persist(q, result);
+  };
+
+  const setState = (s: AskState) => {
+    setStateValue(s);
+  };
+
+  const setResult = (r: ClipboardAskResponse | null) => {
+    setResultState(r);
+    sessionRef.current.result = r;
+    persist(question, r);
+  };
+
+  const setErrorMessage = (msg: string | null) => {
+    setErrorMessageState(msg);
+  };
+
+  const setSelectedEntryId = (id: number | null) => {
+    setSelectedEntryIdState(id);
+  };
+
+  const setSelectedEntry = (entry: ClipboardEntry | null) => {
+    setSelectedEntryState(entry);
   };
 
   return (

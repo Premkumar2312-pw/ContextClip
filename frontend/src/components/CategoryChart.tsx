@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnalyticsCountItem } from '../types/analytics';
+import { formatLabel } from '../utils/displayLabels';
 
 interface CategoryChartProps {
   data: AnalyticsCountItem[];
@@ -8,12 +9,7 @@ interface CategoryChartProps {
 /** Formats category name to clean Title Case. */
 function formatCategoryLabel(name: string): string {
   if (!name) return 'General';
-  const upper = name.toUpperCase();
-  if (upper === 'DEVOPS') return 'DevOps';
-  return name
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
+  return formatLabel(name);
 }
 
 export const CategoryChart: React.FC<CategoryChartProps> = ({ data }) => {

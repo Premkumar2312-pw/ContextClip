@@ -582,13 +582,31 @@ public class ClipboardClassifier {
     }
 
     private boolean isJava(String t) {
-        return (t.contains("public class ") || t.contains("private class ")
+        boolean standardJava = t.contains("public class ") || t.contains("private class ")
                 || t.contains("protected class ") || t.contains("abstract class ")
                 || t.contains("public interface ") || t.contains("public enum ")
                 || t.contains("public static void main") || t.contains("System.out.println(")
                 || t.contains("import java.") || t.contains("import jakarta.")
                 || t.contains("import javax.") || t.contains("@Override")
-                || t.contains("@Entity") || t.contains("@Table"))
+                || t.contains("@Entity") || t.contains("@Table");
+
+        boolean javaGenericsOrCollections = (t.contains("HashMap<") || t.contains("ArrayList<")
+                || t.contains("LinkedList<") || t.contains("HashSet<") || t.contains("TreeMap<")
+                || t.contains("TreeSet<") || t.contains("ConcurrentHashMap<")
+                || t.contains("Map<") || t.contains("List<") || t.contains("Set<") || t.contains("Optional<"))
+                && (t.contains("new HashMap") || t.contains("new ArrayList") || t.contains("new LinkedList")
+                    || t.contains("new HashSet") || t.contains("new TreeMap") || t.contains("new TreeSet")
+                    || t.contains(".put(") || t.contains(".get(") || t.contains(".add(")
+                    || t.contains(".containsKey(") || t.contains(".stream()")
+                    || t.contains("List.of(") || t.contains("Map.of(") || t.contains("Set.of("))
+                && t.contains(";");
+
+        boolean javaInstantiations = (t.contains("new HashMap<") || t.contains("new ArrayList<")
+                || t.contains("new LinkedList<") || t.contains("new HashSet<")
+                || t.contains("new StringBuilder(") || t.contains("new StringBuffer("))
+                && t.contains(";");
+
+        return (standardJava || javaGenericsOrCollections || javaInstantiations)
                 && hasSyntaxBrackets(t);
     }
 

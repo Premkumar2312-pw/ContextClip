@@ -25,6 +25,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authStorage.clearAuth();
     setToken(null);
     setUser(null);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('contextclip:auth-logout'));
+    }
   }, []);
 
   useEffect(() => {

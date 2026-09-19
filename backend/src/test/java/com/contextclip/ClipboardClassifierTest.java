@@ -269,4 +269,14 @@ class ClipboardClassifierTest {
         assertTrue(r.technologies().contains("REACT"), "React component must have REACT in technologies");
         assertEquals("WEB", r.category());
     }
+
+    @Test
+    void testJavaCollectionsSnippet() {
+        String snippet = "HashMap<String, Integer> map = new HashMap<>(); map.put(\"Java\", 1);";
+        ClassificationResult r = classifier.classify(snippet);
+        assertEquals("CODE", r.type());
+        assertEquals("JAVA", r.technology());
+        assertTrue(r.technologies().contains("JAVA"));
+        assertEquals("PROGRAMMING", r.category());
+    }
 }

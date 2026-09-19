@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnalyticsCountItem } from '../types/analytics';
+import { formatLabel } from '../utils/displayLabels';
 
 interface TechnologyChartProps {
   data: AnalyticsCountItem[];
@@ -10,13 +11,7 @@ function formatTechLabel(name: string): string {
   if (!name || name.toUpperCase() === 'UNKNOWN') {
     return 'Other / Unknown';
   }
-  if (name.toUpperCase() === 'SQL') {
-    return 'SQL';
-  }
-  return name
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
+  return formatLabel(name);
 }
 
 export const TechnologyChart: React.FC<TechnologyChartProps> = ({ data }) => {

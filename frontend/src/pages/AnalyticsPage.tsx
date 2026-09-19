@@ -26,7 +26,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigateToClipbo
     data.activity.length === 0;
 
   return (
-    <div className="main-wrapper">
+    <div className="main-wrapper analytics-page">
       <Header lastUpdated={lastUpdated} loading={loading} onRefresh={refresh} />
 
       <main className="content-container">

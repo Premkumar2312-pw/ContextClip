@@ -1,6 +1,7 @@
 package com.contextclip.agent;
 
 import java.awt.AWTException;
+import java.awt.CheckboxMenuItem;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -29,7 +30,9 @@ public class TrayManager {
     private boolean traySupported = false;
     private SystemTray systemTray = null;
     private TrayIcon trayIcon = null;
-    private MenuItem monitoringItem = null;
+    private MenuItem statusItem = null;
+    private MenuItem pauseResumeItem = null;
+    private CheckboxMenuItem startupItem = null;
 
     private volatile ConnectionStatus currentStatus = ConnectionStatus.CONNECTED;
     private volatile ConnectionStatus previousOperationalStatus = ConnectionStatus.CONNECTED;
@@ -84,14 +87,41 @@ public class TrayManager {
 
             PopupMenu popup = new PopupMenu();
 
-            // Clear, single monitoring toggle control
-            monitoringItem = new MenuItem(isPaused ? "Monitoring: OFF" : "Monitoring: ON");
-            monitoringItem.addActionListener(e -> {
+            // Header title (informational, disabled)
+            MenuItem titleItem = new MenuItem("ContextClip");
+            titleItem.setEnabled(false);
+            popup.add(titleItem);
+
+            // Status display (informational, disabled)
+            statusItem = new MenuItem("Status: " + currentStatus.getDisplayName());
+            statusItem.setEnabled(false);
+            popup.add(statusItem);
+
+            popup.addSeparator();
+
+            // User-controlled Windows startup toggle
+            if (StartupManager.isWindows()) {
+                startupItem = new CheckboxMenuItem("Start with Windows", StartupManager.isStartupEnabled());
+                startupItem.addItemListener(e -> {
+                    if (startupItem != null) {
+                        boolean requested = startupItem.getState();
+                        boolean success = StartupManager.setStartupEnabled(requested);
+                        if (!success) {
+                            startupItem.setState(StartupManager.isStartupEnabled());
+                        }
+                    }
+                });
+                popup.add(startupItem);
+            }
+
+            // Explicit Pause / Resume action control
+            pauseResumeItem = new MenuItem(isPaused ? "Resume Monitoring" : "Pause Monitoring");
+            pauseResumeItem.addActionListener(e -> {
                 boolean newPaused = !isPaused;
                 setPausedState(newPaused);
                 onPauseToggle.accept(newPaused);
             });
-            popup.add(monitoringItem);
+            popup.add(pauseResumeItem);
 
             popup.addSeparator();
 
@@ -137,10 +167,13 @@ public class TrayManager {
         }
 
         try {
-            if (monitoringItem != null) {
-                monitoringItem.setLabel(isPaused ? "Monitoring: OFF" : "Monitoring: ON");
+            if (statusItem != null) {
+                statusItem.setLabel("Status: " + status.getDisplayName());
             }
-            trayIcon.setToolTip("ContextClip Agent - " + (isPaused ? "Monitoring: OFF" : "Monitoring: ON"));
+            if (pauseResumeItem != null) {
+                pauseResumeItem.setLabel(isPaused ? "Resume Monitoring" : "Pause Monitoring");
+            }
+            trayIcon.setToolTip("ContextClip Agent - " + status.getDisplayName());
             trayIcon.setImage(createTrayImage(status));
             AgentLogger.debug("SystemTray status updated to: " + status.name());
         } catch (Throwable t) {
@@ -150,8 +183,8 @@ public class TrayManager {
 
     public synchronized void setPausedState(boolean paused) {
         this.isPaused = paused;
-        if (monitoringItem != null) {
-            monitoringItem.setLabel(paused ? "Monitoring: OFF" : "Monitoring: ON");
+        if (pauseResumeItem != null) {
+            pauseResumeItem.setLabel(paused ? "Resume Monitoring" : "Pause Monitoring");
         }
         if (paused) {
             updateStatus(ConnectionStatus.PAUSED);
@@ -190,11 +223,29 @@ public class TrayManager {
     }
 
     public String getPauseResumeLabel() {
-        return monitoringItem != null ? monitoringItem.getLabel() : (isPaused ? "Monitoring: OFF" : "Monitoring: ON");
+        return pauseResumeItem != null ? pauseResumeItem.getLabel() : (isPaused ? "Resume Monitoring" : "Pause Monitoring");
     }
 
     public String getMonitoringLabel() {
         return getPauseResumeLabel();
+    }
+
+    public String getStatusItemLabel() {
+        return statusItem != null ? statusItem.getLabel() : ("Status: " + currentStatus.getDisplayName());
+    }
+
+    public CheckboxMenuItem getStartupItem() {
+        return startupItem;
+    }
+
+    public boolean isStartupItemPresent() {
+        return startupItem != null;
+    }
+
+    public void refreshStartupState() {
+        if (startupItem != null && StartupManager.isWindows()) {
+            startupItem.setState(StartupManager.isStartupEnabled());
+        }
     }
 
     public static Image createTrayImage(ConnectionStatus status) {
@@ -206,59 +257,48 @@ public class TrayManager {
         g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
 
-        // Try loading custom branded resource if bundled
-        boolean resourceLoaded = false;
-        try (InputStream stream = TrayManager.class.getResourceAsStream("/icons/contextclip-tray.png")) {
-            if (stream != null) {
-                BufferedImage customImg = ImageIO.read(stream);
-                if (customImg != null) {
-                    g2d.drawImage(customImg, 0, 0, size, size, null);
-                    resourceLoaded = true;
-                }
-            }
-        } catch (Throwable ignored) {
-        }
+        // 1. High-contrast ContextClip brand blue clipboard board (#2563EB)
+        // Outstanding visibility across dark, light, and custom Windows taskbar themes
+        g2d.setColor(new Color(37, 99, 235));
+        g2d.fillRoundRect(4, 4, 24, 25, 5, 5);
 
-        if (!resourceLoaded) {
-            // High-DPI ContextClip procedural brand icon
-            // 1. Dark navy clipboard board (slate-900)
-            g2d.setColor(new Color(15, 23, 42));
-            g2d.fillRoundRect(3, 4, 26, 26, 6, 6);
+        // Subtle dark edge definition
+        g2d.setColor(new Color(29, 78, 216));
+        g2d.drawRoundRect(4, 4, 23, 24, 5, 5);
 
-            // 2. Clipboard top clip holder
-            g2d.setColor(new Color(14, 165, 233)); // sky-500 ContextClip brand blue
-            g2d.fillRoundRect(10, 1, 12, 6, 3, 3);
-            g2d.setColor(new Color(224, 242, 254)); // sky-100 highlight
-            g2d.fillRect(12, 3, 8, 2);
+        // 2. Top metallic clip
+        g2d.setColor(new Color(148, 163, 184)); // Slate-400
+        g2d.fillRoundRect(10, 2, 12, 5, 3, 3);
+        g2d.setColor(new Color(226, 232, 240)); // Slate-200 highlight
+        g2d.fillRoundRect(12, 1, 8, 3, 2, 2);
 
-            // 3. Inner paper notepad
-            g2d.setColor(Color.WHITE);
-            g2d.fillRoundRect(6, 9, 20, 19, 3, 3);
+        // 3. Crisp white paper notepad
+        g2d.setColor(Color.WHITE);
+        g2d.fillRoundRect(7, 9, 18, 17, 3, 3);
 
-            // 4. Subtle snippet lines on the paper
-            g2d.setColor(new Color(203, 213, 225)); // slate-300
-            g2d.fillRect(9, 13, 14, 2);
-            g2d.fillRect(9, 17, 10, 2);
-            g2d.fillRect(9, 21, 7, 2);
-        }
+        // 4. Clean snippet preview lines on the paper
+        g2d.setColor(new Color(147, 197, 253)); // Soft blue
+        g2d.fillRoundRect(9, 13, 12, 2, 1, 1);
+        g2d.fillRoundRect(9, 17, 9, 2, 1, 1);
+        g2d.fillRoundRect(9, 21, 6, 2, 1, 1);
 
         // 5. Status indicator badge in bottom-right corner
         Color statusColor = switch (status) {
-            case CONNECTED -> new Color(34, 197, 94);       // Green
-            case PAUSED -> new Color(234, 179, 8);          // Amber/Yellow
+            case CONNECTED -> new Color(16, 185, 129);       // Vibrant emerald green
+            case PAUSED -> new Color(245, 158, 11);          // Amber
             case RATE_LIMITED -> new Color(249, 115, 22);   // Orange
             case UNAUTHORIZED, FORBIDDEN -> new Color(239, 68, 68); // Red
-            case SERVER_ERROR, DISCONNECTED -> new Color(148, 163, 184); // Gray/Slate
+            case SERVER_ERROR, DISCONNECTED -> new Color(148, 163, 184); // Slate
             case UNCONFIGURED -> new Color(59, 130, 246);   // Blue
         };
 
-        // Outer white border ring for maximum contrast against any Windows taskbar theme
+        // Outer white border ring for maximum contrast against taskbar and clipboard
         g2d.setColor(Color.WHITE);
-        g2d.fillOval(19, 19, 12, 12);
+        g2d.fillOval(18, 18, 12, 12);
 
         // Core status color dot
         g2d.setColor(statusColor);
-        g2d.fillOval(21, 21, 8, 8);
+        g2d.fillOval(20, 20, 8, 8);
 
         g2d.dispose();
         return image;

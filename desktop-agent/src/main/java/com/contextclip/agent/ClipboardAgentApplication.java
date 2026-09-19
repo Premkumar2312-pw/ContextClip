@@ -347,51 +347,11 @@ public class ClipboardAgentApplication {
     // -------------------------------------------------------------------------
 
     public static boolean installStartup() {
-        String appData = System.getenv("APPDATA");
-        if (appData == null || appData.isBlank()) {
-            System.err.println("Could not resolve APPDATA directory for Windows startup.");
-            return false;
-        }
-        File startupDir = new File(appData, "Microsoft\\Windows\\Start Menu\\Programs\\Startup");
-        if (!startupDir.exists()) {
-            startupDir.mkdirs();
-        }
-        File startupFile = new File(startupDir, "ContextClipAgent.bat");
-        try {
-            File jarFile = new File(ClipboardAgentApplication.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-            File jarDir = jarFile.getParentFile();
-            File launcherCmd = new File(jarDir, "ContextClipLauncher.cmd");
-            File bundledJavaw = new File(jarDir, "runtime\\bin\\javaw.exe");
-
-            String scriptContent;
-            if (launcherCmd.exists()) {
-                scriptContent = "@echo off\r\nstart \"\" \"" + launcherCmd.getAbsolutePath() + "\"\r\n";
-            } else if (bundledJavaw.exists()) {
-                scriptContent = "@echo off\r\nstart \"\" \"" + bundledJavaw.getAbsolutePath() + "\" -jar \"" + jarFile.getAbsolutePath() + "\"\r\n";
-            } else {
-                scriptContent = "@echo off\r\nstart \"\" javaw -jar \"" + jarFile.getAbsolutePath() + "\"\r\n";
-            }
-
-            Files.writeString(startupFile.toPath(), scriptContent);
-            System.out.println("Windows startup installed successfully: " + startupFile.getAbsolutePath());
-            return true;
-        } catch (Exception e) {
-            System.err.println("Failed to install Windows startup: " + e.getMessage());
-            return false;
-        }
+        return StartupManager.setStartupEnabled(true);
     }
 
     public static boolean uninstallStartup() {
-        String appData = System.getenv("APPDATA");
-        if (appData == null || appData.isBlank()) return false;
-        File startupFile = new File(appData, "Microsoft\\Windows\\Start Menu\\Programs\\Startup\\ContextClipAgent.bat");
-        if (startupFile.exists()) {
-            boolean deleted = startupFile.delete();
-            System.out.println("Windows startup uninstalled: " + deleted);
-            return deleted;
-        }
-        System.out.println("Windows startup file not found.");
-        return true;
+        return StartupManager.setStartupEnabled(false);
     }
 
     // -------------------------------------------------------------------------

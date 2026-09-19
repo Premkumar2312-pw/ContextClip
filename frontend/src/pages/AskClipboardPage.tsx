@@ -11,6 +11,7 @@ import {
 import { askClipboard, getClipboardEntries } from '../api/clipboardApi';
 import { ClipboardEntry } from '../types/clipboard';
 import { MarkdownView } from '../components/MarkdownView';
+import { formatLabel } from '../utils/displayLabels';
 
 import { useAskClipboard } from '../context/AskClipboardContext';
 
@@ -360,9 +361,9 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
                       {result.sources.map((id) => {
                         const entry = getSourceEntry(id);
                         const tag = entry?.technology && entry.technology !== 'UNKNOWN'
-                          ? entry.technology
+                          ? formatLabel(entry.technology)
                           : entry?.type && entry.type !== 'TEXT' && entry.type !== 'UNKNOWN'
-                            ? entry.type
+                            ? formatLabel(entry.type)
                             : null;
                         return (
                           <button
