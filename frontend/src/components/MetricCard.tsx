@@ -15,9 +15,9 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 }) => {
   const displayValue =
     value === null || value === undefined || value === '' ? '—' : value;
-  const isLongText =
-    typeof displayValue === 'string' &&
-    (displayValue.length >= 10 || (isNaN(Number(displayValue)) && displayValue.length > 7));
+  const isNumber =
+    typeof value === 'number' ||
+    (typeof value === 'string' && value.trim() !== '' && !isNaN(Number(value)));
 
   return (
     <div className="metric-card">
@@ -26,7 +26,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         {icon && <div className="metric-icon">{icon}</div>}
       </div>
       <div
-        className={`metric-value${isLongText ? ' metric-value--long' : ''}`}
+        className={`metric-value${!isNumber ? ' metric-value--text' : ''}`}
         title={String(displayValue)}
       >
         {displayValue}

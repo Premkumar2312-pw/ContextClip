@@ -4,14 +4,19 @@ import { formatLabel } from './displayLabels';
 describe('formatLabel', () => {
   it('formats raw enums into human-readable labels', () => {
     expect(formatLabel('TERMINAL_COMMAND')).toBe('Terminal Command');
+    expect(formatLabel('COMMAND')).toBe('Terminal Command');
     expect(formatLabel('PLAIN_TEXT')).toBe('Plain Text');
     expect(formatLabel('TEXT')).toBe('Plain Text');
+    expect(formatLabel('IMAGE')).toBe('Image');
+    expect(formatLabel('PHONE_NUMBER')).toBe('Phone Number');
     expect(formatLabel('UNKNOWN')).toBe('Unknown');
     expect(formatLabel('SPRING_BOOT')).toBe('Spring Boot');
     expect(formatLabel('NODE_JS')).toBe('Node.js');
     expect(formatLabel('SQL')).toBe('SQL');
     expect(formatLabel('JSON')).toBe('JSON');
     expect(formatLabel('DEVOPS')).toBe('DevOps');
+    expect(formatLabel('POWERSHELL')).toBe('PowerShell');
+    expect(formatLabel('COMMUNICATION')).toBe('Communication');
   });
 
   it('handles null, undefined, and empty string', () => {

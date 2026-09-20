@@ -69,4 +69,35 @@ public class AiServiceClient {
     public String generateExplanation(String prompt) {
         return generateResponse(prompt);
     }
+
+    public String generateVisionResponse(String prompt, String imageDataUrl) {
+        try {
+            String requestBody = objectMapper.writeValueAsString(Map.of("prompt", prompt, "image", imageDataUrl));
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(aiServiceUrl + "/api/ai/vision"))
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(timeoutSeconds))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            if (response.statusCode() != 200) {
+                throw new AiServiceException("AI Service returned HTTP " + response.statusCode() + ": " + response.body(), response.statusCode());
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode responseNode = root.get("response");
+            if (responseNode == null || responseNode.isNull() || responseNode.asText().trim().isEmpty()) {
+                throw new AiServiceException("AI Service returned an invalid or empty response", 502);
+            }
+
+            return responseNode.asText().trim();
+        } catch (AiServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiServiceException("Failed to communicate with AI Service vision endpoint: " + e.getMessage(), 503, e);
+        }
+    }
 }

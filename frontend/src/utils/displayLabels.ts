@@ -6,6 +6,7 @@
 const KNOWN_LABELS: Record<string, string> = {
   // Types & Syntax Formats
   TERMINAL_COMMAND: 'Terminal Command',
+  COMMAND: 'Terminal Command',
   PLAIN_TEXT: 'Plain Text',
   TEXT: 'Plain Text',
   CODE: 'Code',
@@ -16,6 +17,9 @@ const KNOWN_LABELS: Record<string, string> = {
   UUID: 'UUID',
   IP_ADDRESS: 'IP Address',
   FILE_PATH: 'File Path',
+  PHONE_NUMBER: 'Phone Number',
+  PHONE: 'Phone Number',
+  IMAGE: 'Image',
   ERROR_LOG: 'Error Log',
   CONFIG: 'Configuration',
   CONFIGURATION: 'Configuration',
@@ -37,6 +41,7 @@ const KNOWN_LABELS: Record<string, string> = {
   CLOUD: 'Cloud',
   SYSTEM: 'System',
   TROUBLESHOOTING: 'Troubleshooting',
+  COMMUNICATION: 'Communication',
 
   // Technologies & Languages
   UNKNOWN: 'Unknown',
@@ -53,6 +58,7 @@ const KNOWN_LABELS: Record<string, string> = {
   CSS: 'CSS',
   SHELL: 'Shell',
   BASH: 'Bash',
+  POWERSHELL: 'PowerShell',
   SPRING_BOOT: 'Spring Boot',
   SPRING: 'Spring',
   REACT: 'React',

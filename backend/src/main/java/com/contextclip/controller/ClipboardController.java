@@ -59,10 +59,12 @@ public class ClipboardController {
             ));
         }
 
-        if (request.getContent().length() > ClipboardService.MAX_CLIPBOARD_CONTENT_LENGTH) {
+        boolean isImage = request.getContent().startsWith("data:image/");
+        int maxLength = isImage ? ClipboardService.MAX_IMAGE_CONTENT_LENGTH : ClipboardService.MAX_CLIPBOARD_CONTENT_LENGTH;
+        if (request.getContent().length() > maxLength) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                     "error", "Bad Request",
-                    "message", "Clipboard content exceeds maximum allowed length of " + ClipboardService.MAX_CLIPBOARD_CONTENT_LENGTH + " characters",
+                    "message", "Clipboard content exceeds maximum allowed length of " + maxLength + " characters",
                     "status", 400
             ));
         }

@@ -650,9 +650,10 @@ button, input, select, textarea {
   margin-bottom: auto;
 }
 
+.metric-value--text,
 .metric-value--long {
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   letter-spacing: -0.2px;
   line-height: 1.25;
   white-space: nowrap;
@@ -823,10 +824,12 @@ button, input, select, textarea {
   line-height: 1.2;
 }
 
+.dashboard-overview-page .metric-value--text,
+.analytics-page .metric-value--text,
 .dashboard-overview-page .metric-value--long,
 .analytics-page .metric-value--long {
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   letter-spacing: -0.2px;
   line-height: 1.25;
   white-space: nowrap;
@@ -1061,6 +1064,182 @@ button, input, select, textarea {
 
 .code-expand-toggle:hover {
   text-decoration: underline;
+}
+
+.image-preview-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--bg-canvas, #F8FAFC);
+  border: 1px solid var(--border-default, #E2E8F0);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  overflow: hidden;
+  max-height: 420px;
+}
+
+.image-preview-container.clickable {
+  cursor: pointer;
+  position: relative;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.image-preview-container.clickable:hover {
+  border-color: var(--accent-primary, #2563EB);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+}
+
+.image-preview-container.clickable:hover .image-preview-overlay-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.image-preview-overlay-hint {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.clipboard-image-preview {
+  max-width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.05));
+  display: block;
+}
+
+/* ==========================================================================
+   Image Viewer Modal (Lightbox)
+   ========================================================================== */
+
+.image-viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.image-viewer-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  pointer-events: none;
+}
+
+.image-viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 4px 10px;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  margin: 0 auto;
+}
+
+.image-viewer-btn {
+  background: transparent;
+  border: none;
+  color: #F8FAFC;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.image-viewer-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.image-viewer-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.image-viewer-zoom-label {
+  color: #CBD5E1;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.image-viewer-close-btn {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #F8FAFC;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.15s, border-color 0.15s;
+  backdrop-filter: blur(8px);
+  margin-left: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.image-viewer-close-btn:hover {
+  background: #EF4444;
+  border-color: #EF4444;
+}
+
+.image-viewer-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 56px 16px 16px;
+}
+
+.image-viewer-img {
+  max-width: 90vw;
+  max-height: 82vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease-out;
+  user-select: none;
 }
 
 .clipboard-card-footer {

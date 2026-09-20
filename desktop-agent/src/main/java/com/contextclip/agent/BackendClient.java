@@ -373,7 +373,7 @@ public class BackendClient {
         if (input == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(input.length() + 32);
         for (int i = 0; i < input.length(); i++) {
             char ch = input.charAt(i);
             switch (ch) {

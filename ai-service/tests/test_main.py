@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from groq import RateLimitError, AuthenticationError, APIConnectionError, BadRequestError
@@ -115,5 +115,59 @@ def test_groq_service_mocked_completion_unit():
         mock_client.chat.completions.create.assert_called_once_with(
             messages=[{"role": "user", "content": "Explain Spring Boot"}],
             model="llama-3.3-70b-versatile",
+            temperature=0.2
+        )
+
+
+def test_vision_endpoint_success_mocked():
+    with patch.object(groq_service, "generate_vision_response", return_value="This image displays a React component tree diagram."):
+        response = client.post(
+            "/api/ai/vision",
+            json={
+                "prompt": "Describe this image",
+                "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            }
+        )
+        assert response.status_code == 200
+        assert response.json() == {
+            "response": "This image displays a React component tree diagram."
+        }
+
+
+def test_vision_endpoint_missing_image():
+    response = client.post(
+        "/api/ai/vision",
+        json={"prompt": "Describe this image", "image": ""}
+    )
+    assert response.status_code == 400
+    assert "Image data cannot be empty or blank" in response.json()["detail"]
+
+
+def test_groq_service_vision_completion_unit():
+    service = GroqService(api_key="mock-groq-key")
+
+    mock_choice = MagicMock()
+    mock_choice.message.content = "Mocked visual analysis"
+    mock_completion = MagicMock()
+    mock_completion.choices = [mock_choice]
+
+    with patch("app.services.groq_service.Groq") as mock_groq_cls:
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_completion
+        mock_groq_cls.return_value = mock_client
+
+        result = service.generate_vision_response("Analyze diagram", "data:image/png;base64,123")
+        assert result == "Mocked visual analysis"
+        mock_client.chat.completions.create.assert_called_once_with(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Analyze diagram"},
+                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,123"}}
+                    ]
+                }
+            ],
+            model="llama-3.2-11b-vision-preview",
             temperature=0.2
         )

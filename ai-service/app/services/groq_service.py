@@ -1,4 +1,4 @@
-﻿import os
+import os
 from typing import Optional
 from groq import Groq, APIError, RateLimitError, AuthenticationError, APIConnectionError, BadRequestError, InternalServerError
 
@@ -22,6 +22,10 @@ class GroqService:
             return self._model
         return os.getenv("GROQ_MODEL", DEFAULT_MODEL)
 
+    @property
+    def vision_model(self) -> str:
+        return os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
+
     def is_configured(self) -> bool:
         key = self.api_key
         return bool(key and key.strip())
@@ -40,6 +44,36 @@ class GroqService:
                 }
             ],
             model=self.model,
+            temperature=0.2,
+        )
+
+        if not chat_completion.choices or not chat_completion.choices[0].message or not chat_completion.choices[0].message.content:
+            raise ValueError("Empty response received from Groq API")
+
+        return chat_completion.choices[0].message.content.strip()
+
+    def generate_vision_response(self, prompt: str, image_url: str) -> str:
+        key = self.api_key
+        if not key or not key.strip():
+            raise ValueError("GROQ_API_KEY environment variable is not set")
+
+        client = Groq(api_key=key.strip())
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_url,
+                            },
+                        },
+                    ],
+                }
+            ],
+            model=self.vision_model,
             temperature=0.2,
         )
 

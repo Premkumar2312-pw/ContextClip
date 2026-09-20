@@ -3,6 +3,7 @@ import { ClipboardEntry } from '../types/clipboard';
 import { deleteClipboardEntry, explainClipboardEntry, summarizeClipboardEntry } from '../api/clipboardApi';
 import { MarkdownView } from './MarkdownView';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { ImageViewerModal } from './ImageViewerModal';
 import { formatLabel } from '../utils/displayLabels';
 import {
   Sparkles,
@@ -27,6 +28,7 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -226,16 +228,43 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
       </div>
 
       <div className="clipboard-card-body">
-        <div className={`code-container ${isExpanded ? 'expanded' : ''}`}>
-          <code>{entry.content}</code>
-        </div>
-        {isLongContent && (
-          <button
-            className="code-expand-toggle"
-            onClick={() => setIsExpanded(!isExpanded)}
+        {entry.type === 'IMAGE' || entry.content.startsWith('data:image/') ? (
+          <div
+            className="image-preview-container clickable"
+            onClick={() => setIsImageViewerOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsImageViewerOpen(true);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            title="Click to view full image"
+            aria-label={`Open image viewer for clipboard item #${entry.id}`}
           >
-            {isExpanded ? 'Show less' : 'Show more'}
-          </button>
+            <img
+              src={entry.content}
+              alt={`Clipboard image #${entry.id}`}
+              className="clipboard-image-preview"
+              loading="lazy"
+            />
+            <div className="image-preview-overlay-hint">Click to enlarge</div>
+          </div>
+        ) : (
+          <>
+            <div className={`code-container ${isExpanded ? 'expanded' : ''}`}>
+              <code>{entry.content}</code>
+            </div>
+            {isLongContent && (
+              <button
+                className="code-expand-toggle"
+                onClick={() => setIsExpanded(!isExpanded)}
+              >
+                {isExpanded ? 'Show less' : 'Show more'}
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -412,6 +441,14 @@ export const ClipboardItem: React.FC<ClipboardItemProps> = ({ entry, onDelete })
             <MarkdownView content={summary} />
           </div>
         </div>
+      )}
+
+      {isImageViewerOpen && (
+        <ImageViewerModal
+          imageUrl={entry.content}
+          altText={`Clipboard image #${entry.id}`}
+          onClose={() => setIsImageViewerOpen(false)}
+        />
       )}
     </div>
   );

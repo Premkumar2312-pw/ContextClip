@@ -95,6 +95,9 @@ public class ContentClassifier {
     private static final Pattern FILE_WIN_PAT = Pattern.compile("^[A-Za-z]:\\\\(\\S+\\\\)*\\S*$");
     private static final Pattern FILE_UNIX_PAT = Pattern.compile("^(/[^/\\s]+)+/?$");
 
+    private static final Pattern PHONE_PAT = Pattern.compile(
+            "^\\+?(\\d{1,4}[-.\\s]?)?(\\(?\\d{2,4}\\)?[-.\\s]?)?[\\d.\\s-]{6,14}\\d$");
+
     // -------------------------------------------------------------------------
     // SQL
     // -------------------------------------------------------------------------
@@ -115,12 +118,12 @@ public class ContentClassifier {
     // Terminal commands
     // -------------------------------------------------------------------------
 
-    private static final Pattern DOCKER_CMD  = Pattern.compile("^(docker\\s+compose|docker-compose|docker)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DOCKER_CMD  = Pattern.compile("^(docker\\s+compose|docker-compose|docker|podman)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern GIT_CMD     = Pattern.compile("^git\\s+\\S.*",   Pattern.CASE_INSENSITIVE);
     private static final Pattern MAVEN_CMD   = Pattern.compile("^(\\./)?(mvn|mvnw)\\s+.*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern NPM_CMD     = Pattern.compile("^(npm|npx|yarn|pnpm)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PYTHON_CMD  = Pattern.compile("^(python3?|pip3?|pytest|poetry|uv)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern JAVA_CMD    = Pattern.compile("^(java|javac|gradle|\\./gradlew|gradlew)\\s+.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NODE_CMD    = Pattern.compile("^(node|nodejs|npm|npx|yarn|pnpm|bun|deno)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PYTHON_CMD  = Pattern.compile("^(python[23]?|py|pip[23]?|pytest|poetry|uv|pipenv|conda)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern JAVA_CMD    = Pattern.compile("^(java|javac|javadoc|jar|gradle|\\./gradlew|gradlew)\\s+.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern KUBECTL_CMD = Pattern.compile("^kubectl\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern AWS_CMD     = Pattern.compile("^aws\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CMD   = Pattern.compile(
@@ -154,61 +157,69 @@ public class ContentClassifier {
         }
         String trimmed = text.trim();
 
+        // 0. Image Data URL
+        if (trimmed.startsWith("data:image/")) {
+            return Result.of("IMAGE", "IMAGE", List.of("IMAGE"), "IMAGE", false, 1.0f);
+        }
+
         // 1. Sensitivity — always first
         boolean sensitive = detectSensitive(trimmed);
 
-        // 2. JSON
-        if (isJson(trimmed)) {
-            return Result.of("JSON", null, List.of(), "DATA", sensitive, 1.0f);
+        // 2. Phone number
+        if (isPhoneNumber(trimmed)) {
+            return Result.of("PHONE_NUMBER", null, List.of(), "COMMUNICATION", sensitive, 0.95f);
         }
 
-        // 3. URL
-        if (URL_PAT.matcher(trimmed).matches()) {
-            return Result.of("URL", null, detectUrlTechs(trimmed), "DOCUMENTATION", sensitive, 1.0f);
-        }
-
-        // 4. Email
+        // 3. Email
         if (EMAIL_PAT.matcher(trimmed).matches()) {
             return Result.of("EMAIL", null, List.of(), "COMMUNICATION", sensitive, 1.0f);
         }
 
-        // 5. UUID
-        if (UUID_PAT.matcher(trimmed).matches()) {
-            return Result.of("UUID", null, List.of(), "IDENTIFIER", sensitive, 0.98f);
+        // 4. URL
+        if (URL_PAT.matcher(trimmed).matches()) {
+            return Result.of("URL", null, detectUrlTechs(trimmed), "DOCUMENTATION", sensitive, 1.0f);
         }
 
-        // 6. IP address
-        if (IPV4_PAT.matcher(trimmed).matches()) {
-            return Result.of("IP_ADDRESS", null, List.of(), "NETWORKING", sensitive, 1.0f);
-        }
+        // 5. Terminal commands
+        Result cmdResult = checkCommand(trimmed, sensitive);
+        if (cmdResult != null) return cmdResult;
 
-        // 7. File path (single-line only)
-        if (!trimmed.contains("\n") && (FILE_WIN_PAT.matcher(trimmed).matches() || FILE_UNIX_PAT.matcher(trimmed).matches())) {
-            return Result.of("FILE_PATH", null, List.of(), "FILESYSTEM", sensitive, 0.9f);
-        }
-
-        // 8. Stack trace / error
+        // 6. Stack trace / error
         Result errResult = checkError(trimmed, sensitive);
         if (errResult != null) return errResult;
 
-        // 9. SQL
+        // 7. SQL
         if (isSql(trimmed)) {
             return Result.of("SQL", "SQL", List.of("SQL"), "DATABASE", sensitive, 0.98f);
         }
 
-        // 10. Terminal commands
-        Result cmdResult = checkCommand(trimmed, sensitive);
-        if (cmdResult != null) return cmdResult;
-
-        // 11. Configuration
-        Result configResult = checkConfiguration(trimmed, sensitive);
-        if (configResult != null) return configResult;
-
-        // 12. Code
+        // 8. Code
         Result codeResult = checkCode(trimmed, sensitive);
         if (codeResult != null) return codeResult;
 
-        // 13. Sensitive fallback
+        // 9. Configuration
+        Result configResult = checkConfiguration(trimmed, sensitive);
+        if (configResult != null) return configResult;
+
+        // 10. Data formats
+        if (isJson(trimmed)) {
+            return Result.of("JSON", null, List.of(), "DATA", sensitive, 1.0f);
+        }
+
+        if (UUID_PAT.matcher(trimmed).matches()) {
+            return Result.of("UUID", null, List.of(), "IDENTIFIER", sensitive, 0.98f);
+        }
+
+        if (IPV4_PAT.matcher(trimmed).matches()) {
+            return Result.of("IP_ADDRESS", null, List.of(), "NETWORKING", sensitive, 1.0f);
+        }
+
+        // File path (single-line only)
+        if (!trimmed.contains("\n") && (FILE_WIN_PAT.matcher(trimmed).matches() || FILE_UNIX_PAT.matcher(trimmed).matches())) {
+            return Result.of("FILE_PATH", null, List.of(), "FILESYSTEM", sensitive, 0.9f);
+        }
+
+        // 11. Sensitive fallback
         if (sensitive) return Result.sensitiveText();
 
         return Result.plainText();
@@ -284,12 +295,23 @@ public class ContentClassifier {
         if (KUBECTL_CMD.matcher(first).matches()) return Result.of("COMMAND", "SHELL", List.of("KUBERNETES"), "DEVOPS", sensitive, 0.97f);
         if (AWS_CMD.matcher(first).matches())     return Result.of("COMMAND", "SHELL", List.of("AWS"),        "DEVOPS", sensitive, 0.97f);
         if (MAVEN_CMD.matcher(first).matches())   return Result.of("COMMAND", "SHELL", List.of("MAVEN"),      "BUILD",  sensitive, 0.97f);
-        if (NPM_CMD.matcher(first).matches())     return Result.of("COMMAND", "SHELL", List.of("NODE_JS"),    "BUILD",  sensitive, 0.97f);
+        if (NODE_CMD.matcher(first).matches())    return Result.of("COMMAND", "SHELL", List.of("NODE_JS"),    List.of("DEVOPS", "BUILD"), sensitive, 0.97f);
         if (PYTHON_CMD.matcher(first).matches())  return Result.of("COMMAND", "PYTHON", List.of("PYTHON"),   "DEVOPS", sensitive, 0.97f);
         if (JAVA_CMD.matcher(first).matches())    return Result.of("COMMAND", "SHELL", List.of("JAVA"),       "BUILD",  sensitive, 0.97f);
-        if (PS_CMD.matcher(first).matches())      return Result.of("COMMAND", "POWERSHELL", List.of(),        "DEVOPS", sensitive, 0.9f);
-        if (SHELL_CMD.matcher(first).matches())   return Result.of("COMMAND", "SHELL", List.of(),             "DEVOPS", sensitive, 0.9f);
+        if (PS_CMD.matcher(first).matches())      return Result.of("COMMAND", "POWERSHELL", List.of("POWERSHELL"), "DEVOPS", sensitive, 0.9f);
+        if (SHELL_CMD.matcher(first).matches())   return Result.of("COMMAND", "SHELL",      List.of("SHELL"),      "DEVOPS", sensitive, 0.9f);
         return null;
+    }
+
+    private boolean isPhoneNumber(String text) {
+        if (text.contains("\n") || text.length() < 7 || text.length() > 25) {
+            return false;
+        }
+        if (IPV4_PAT.matcher(text).matches()) {
+            return false;
+        }
+        long digits = text.chars().filter(Character::isDigit).count();
+        return digits >= 7 && digits <= 15 && PHONE_PAT.matcher(text).matches();
     }
 
     private Result checkConfiguration(String text, boolean sensitive) {
@@ -337,7 +359,10 @@ public class ContentClassifier {
         }
         // Python
         if (isPython(text)) {
-            List<String> techs = new ArrayList<>(); techs.add("PYTHON");
+            List<String> techs = new ArrayList<>();
+            techs.add("PYTHON");
+            if (text.contains("pandas") || text.contains("pd.")) techs.add("PANDAS");
+            if (text.contains("numpy") || text.contains("np.")) techs.add("NUMPY");
             return Result.of("CODE", "PYTHON", techs, "PROGRAMMING", sensitive, 0.93f);
         }
         // JavaScript
@@ -380,10 +405,17 @@ public class ContentClassifier {
     }
 
     private boolean isTs(String t) {
-        return (t.contains(": string") || t.contains(": number") || t.contains(": boolean")
-                || t.contains(": void") || t.contains(": any") || t.contains("interface "))
-                && (t.contains("const ") || t.contains("let ") || t.contains("import ") || t.contains("export "))
-                && hasBrackets(t);
+        if (isPython(t)) {
+            return false;
+        }
+        boolean hasTsType = t.contains(": string") || t.contains(": number") || t.contains(": boolean")
+                || t.contains(": void") || t.contains(": any") || t.contains(": unknown") || t.contains("interface ")
+                || (t.contains("type ") && t.contains(" = {")) || t.contains("<T>")
+                || t.matches("(?s).*\\bas\\s+([A-Z]\\w*|string|number|boolean|any|unknown|const)\\b.*");
+        boolean hasJsDecl = t.contains("const ") || t.contains("let ") || t.contains("function ")
+                || (t.contains("import ") && (t.contains("from '") || t.contains("from \"")))
+                || t.contains("export ");
+        return hasTsType && hasJsDecl && hasBrackets(t);
     }
 
     private boolean isJava(String t) {
@@ -391,8 +423,10 @@ public class ContentClassifier {
                 || t.contains("protected class ") || t.contains("abstract class ")
                 || t.contains("public interface ") || t.contains("public enum ")
                 || t.contains("public static void main") || t.contains("System.out.println(")
+                || t.contains("System.out.print(") || t.contains("System.err.print")
                 || t.contains("import java.") || t.contains("import jakarta.")
-                || t.contains("@Override") || t.contains("@Entity");
+                || t.contains("@Override") || t.contains("@Entity")
+                || (t.contains("package ") && t.contains(";") && t.lines().anyMatch(l -> l.trim().startsWith("package ")));
 
         boolean javaGenericsOrCollections = (t.contains("HashMap<") || t.contains("ArrayList<")
                 || t.contains("LinkedList<") || t.contains("HashSet<") || t.contains("TreeMap<")
@@ -405,10 +439,11 @@ public class ContentClassifier {
                     || t.contains("List.of(") || t.contains("Map.of(") || t.contains("Set.of("))
                 && t.contains(";");
 
-        boolean javaInstantiations = (t.contains("new HashMap<") || t.contains("new ArrayList<")
-                || t.contains("new LinkedList<") || t.contains("new HashSet<")
-                || t.contains("new StringBuilder(") || t.contains("new StringBuffer("))
-                && t.contains(";");
+        boolean javaInstantiations = (t.contains("new HashMap") || t.contains("new ArrayList")
+                || t.contains("new LinkedList") || t.contains("new HashSet")
+                || t.contains("new StringBuilder(") || t.contains("new StringBuffer(")
+                || t.contains("new ConcurrentHashMap") || t.contains("new TreeMap") || t.contains("new TreeSet"))
+                && t.contains(";") && (t.contains("<") || t.contains("("));
 
         return (standardJava || javaGenericsOrCollections || javaInstantiations)
                 && hasBrackets(t);
@@ -421,11 +456,30 @@ public class ContentClassifier {
     }
 
     private boolean isPython(String t) {
+        boolean looksLikeJavaOrC = (t.contains("{") && t.contains("}") && t.contains(";"))
+                || t.contains("public class ") || t.contains("private ") || t.contains("System.out.")
+                || t.contains("import java.") || t.contains("import jakarta.") || t.contains("namespace ");
+        if (looksLikeJavaOrC) return false;
+
+        boolean hasPythonImport = t.lines().anyMatch(line -> {
+            String l = line.trim();
+            return (l.startsWith("import ") || l.startsWith("from "))
+                    && !l.endsWith(";")
+                    && !l.contains(";")
+                    && !l.contains("{")
+                    && !l.contains(" from '")
+                    && !l.contains(" from \"");
+        });
+
         boolean hasDefColon = t.contains("def ") && t.contains("(") && t.contains(":") && t.contains("\n");
-        boolean hasFromImport = (t.startsWith("from ") || t.contains("\nfrom ")) && t.contains(" import ");
-        boolean looksLikeJava = t.contains("{") && t.contains("}") && t.contains(";");
-        return !looksLikeJava && (hasDefColon || hasFromImport
-                || (t.contains("print(") && !t.contains(";") && !t.contains("System.out")));
+        boolean hasPyClass = t.contains("class ") && t.contains(":") && !t.contains("{") && !t.contains(";");
+        boolean hasPrint = t.contains("print(") && !t.contains(";") && !t.contains("System.out");
+        boolean hasMainGuard = t.contains("if __name__ ==") || t.contains("if __name__==");
+        boolean hasPandasOrNumpy = (t.contains("pd.") || t.contains("np."))
+                && (t.contains("read_csv") || t.contains("DataFrame") || t.contains("Series")
+                    || t.contains("array(") || t.contains("zeros(") || t.contains("plot("));
+
+        return hasDefColon || hasPythonImport || (hasPyClass && !t.contains("{")) || hasPrint || hasMainGuard || hasPandasOrNumpy;
     }
 
     private boolean isJs(String t) {

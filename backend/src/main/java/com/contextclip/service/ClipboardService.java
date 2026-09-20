@@ -27,6 +27,7 @@ public class ClipboardService {
     public static final int MAX_ASK_ENTRIES = 10;
     public static final int MAX_QUESTION_LENGTH = 2000;
     public static final int MAX_CLIPBOARD_CONTENT_LENGTH = 100_000;
+    public static final int MAX_IMAGE_CONTENT_LENGTH = 10_000_000;
 
     private static final Set<String> STOP_WORDS = Set.of(
             "a", "about", "all", "an", "and", "any", "are", "as", "at", "be", "been",
@@ -152,8 +153,14 @@ public class ClipboardService {
             throw new IllegalArgumentException("Clipboard content cannot be empty or blank");
         }
 
-        String prompt = buildExplanationPrompt(entry);
-        String explanation = aiServiceClient.generateResponse(prompt);
+        String explanation;
+        if ("IMAGE".equalsIgnoreCase(entry.getType()) || (entry.getContent() != null && entry.getContent().startsWith("data:image/"))) {
+            String prompt = "Describe and explain what this image shows clearly, accurately, and concisely for a developer or student. Detail any text, diagrams, code, UI elements, or architecture shown in the image.";
+            explanation = aiServiceClient.generateVisionResponse(prompt, entry.getContent());
+        } else {
+            String prompt = buildExplanationPrompt(entry);
+            explanation = aiServiceClient.generateResponse(prompt);
+        }
         return new ClipboardExplanationResponse(entry.getId(), explanation);
     }
 
@@ -170,8 +177,14 @@ public class ClipboardService {
             throw new IllegalArgumentException("Clipboard content cannot be empty or blank");
         }
 
-        String prompt = buildSummarizationPrompt(entry);
-        String summary = aiServiceClient.generateResponse(prompt);
+        String summary;
+        if ("IMAGE".equalsIgnoreCase(entry.getType()) || (entry.getContent() != null && entry.getContent().startsWith("data:image/"))) {
+            String prompt = "Provide a concise 1-2 sentence summary of what this image shows.";
+            summary = aiServiceClient.generateVisionResponse(prompt, entry.getContent());
+        } else {
+            String prompt = buildSummarizationPrompt(entry);
+            summary = aiServiceClient.generateResponse(prompt);
+        }
         return new ClipboardSummaryResponse(entry.getId(), summary);
     }
 
@@ -193,6 +206,20 @@ public class ClipboardService {
 
         if (relevantEntries.isEmpty()) {
             return new ClipboardQuestionResponse("No clipboard entries found in your history to answer this question.", List.of());
+        }
+
+        // Check if question asks about an image and an image entry is present
+        String lowerQ = cleanQuestion.toLowerCase();
+        if ((lowerQ.contains("image") || lowerQ.contains("screenshot") || lowerQ.contains("picture") || lowerQ.contains("diagram") || lowerQ.contains("photo"))) {
+            ClipboardEntry imageEntry = relevantEntries.stream()
+                    .filter(e -> "IMAGE".equalsIgnoreCase(e.getType()) || (e.getContent() != null && e.getContent().startsWith("data:image/")))
+                    .findFirst()
+                    .orElse(null);
+            if (imageEntry != null) {
+                String visionPrompt = "The user asks: \"" + cleanQuestion + "\". Analyze this image from their clipboard and answer their question directly, concisely, and accurately.";
+                String answer = aiServiceClient.generateVisionResponse(visionPrompt, imageEntry.getContent());
+                return new ClipboardQuestionResponse(answer, List.of(imageEntry.getId()));
+            }
         }
 
         String prompt = buildAskPrompt(cleanQuestion, relevantEntries);
@@ -289,7 +316,9 @@ public class ClipboardService {
         } else {
             for (ClipboardEntry entry : entries) {
                 String content = entry.getContent() != null ? entry.getContent() : "";
-                if (content.length() > 800) {
+                if ("IMAGE".equalsIgnoreCase(entry.getType()) || content.startsWith("data:image/")) {
+                    content = "[Image Entry: captured on " + entry.getCapturedAt() + "]";
+                } else if (content.length() > 800) {
                     content = content.substring(0, 800) + "\n...[content truncated]";
                 }
                 sb.append(String.format("""

@@ -417,6 +417,8 @@ public class ClipboardAgentApplication {
         if (content == null || content.trim().isEmpty()) {
             return;
         }
+        boolean isImage = content.startsWith("data:image/");
+        AgentLogger.info("[Agent] Clipboard changed (" + content.length() + " chars, isImage=" + isImage + ")");
         System.out.println("[Agent] Clipboard changed (" + content.length() + " chars detected)");
         while (!uploadQueue.offer(content)) {
             // Queue full: discard oldest entry to prevent unbounded buffer
@@ -448,12 +450,14 @@ public class ClipboardAgentApplication {
         BackendClient.SendResult result = backendClient.sendClipboardContent(content);
 
         if (result.isSuccess()) {
+            AgentLogger.info("[Agent] Clipboard sent to backend successfully. Backend ID: " + result.backendId);
             System.out.println("Clipboard sent to backend successfully.");
             System.out.println("Backend ID: " + result.backendId);
             if (trayManager != null) {
                 trayManager.updateStatus(ConnectionStatus.CONNECTED);
             }
         } else {
+            AgentLogger.warn("[Agent] Clipboard upload failed: " + result.errorType + " (HTTP " + result.httpStatus + ")");
             switch (result.errorType) {
                 case HTTP_401 -> {
                     System.err.println("ERROR 401 Unauthorized: Agent authentication failed. Generate a fresh personal AGENT_TOKEN.");
