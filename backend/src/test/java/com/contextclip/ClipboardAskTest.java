@@ -176,4 +176,40 @@ class ClipboardAskTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("RECEIVED"));
     }
+
+    @Test
+    void testGeneralAiPromptDoesNotAttachClipboardContext() throws Exception {
+        when(aiServiceClient.generateResponse(anyString()))
+                .thenReturn("A HashMap in Java is a hash table based implementation of the Map interface.");
+
+        mockMvc.perform(post("/api/clipboard/ask")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\": \"What is a Java HashMap?\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answer").value("A HashMap in Java is a hash table based implementation of the Map interface."))
+                .andExpect(jsonPath("$.sources").isArray())
+                .andExpect(jsonPath("$.sources").isEmpty());
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiServiceClient).generateResponse(promptCaptor.capture());
+        String prompt = promptCaptor.getValue();
+        assertThat(prompt).contains("What is a Java HashMap?");
+        assertThat(prompt).doesNotContain("Retrieved Clipboard Context:");
+    }
+
+    @Test
+    void testImagePromptRoutesToAiVisionEndpoint() throws Exception {
+        ClipboardEntry imageEntry = clipboardService.save("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+
+        when(aiServiceClient.generateVisionResponse(anyString(), anyString()))
+                .thenReturn("This image displays a 1x1 pixel test image.");
+
+        mockMvc.perform(post("/api/clipboard/ask")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\": \"What is shown in this image?\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answer").value("This image displays a 1x1 pixel test image."))
+                .andExpect(jsonPath("$.sources").isArray())
+                .andExpect(jsonPath("$.sources[0]").value(imageEntry.getId()));
+    }
 }

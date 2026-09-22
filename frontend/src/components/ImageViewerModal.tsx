@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface ImageViewerModalProps {
@@ -34,19 +35,22 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
     };
   }, []);
 
-  const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.25, 3.0));
+  const handleZoomIn = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3.0));
   };
 
-  const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.25, 0.5));
+  const handleZoomOut = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 0.5));
   };
 
-  const handleResetZoom = () => {
+  const handleResetZoom = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setZoom(1);
   };
 
-  return (
+  const modalContent = (
     <div
       className="image-viewer-backdrop"
       onClick={(e) => {
@@ -58,7 +62,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
       aria-modal="true"
       aria-label="Image Viewer"
     >
-      <div className="image-viewer-toolbar">
+      <div className="image-viewer-toolbar" onClick={(e) => e.stopPropagation()}>
         <div className="image-viewer-controls">
           <button
             type="button"
@@ -95,7 +99,10 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
         <button
           type="button"
           className="image-viewer-close-btn"
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           title="Close (Esc)"
           aria-label="Close image viewer"
         >
@@ -118,8 +125,15 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
           style={{
             transform: `scale(${zoom})`,
           }}
+          onClick={(e) => e.stopPropagation()}
         />
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 };
+

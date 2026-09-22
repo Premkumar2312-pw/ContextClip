@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import {
   MessageSquare,
+  Sparkles,
+  FileText,
   RotateCcw,
   X,
   Clipboard as ClipboardIcon,
@@ -18,10 +20,13 @@ import { useAskClipboard } from '../context/AskClipboardContext';
 const MAX_QUESTION_LENGTH = 2000;
 
 const EXAMPLE_PROMPTS = [
+  'Explain my most recent clipboard entry',
+  'Summarize my latest clipboard entry',
   'What Docker commands have I copied?',
-  'What SQL queries did I save?',
-  'What Java code have I copied?',
-  'Which Git commands are in my history?',
+  'What is a Java HashMap?',
+  'What does this Java code do?',
+  'Compare the code snippets I copied',
+  'Find errors in my copied code',
 ];
 
 interface AskClipboardPageProps {
@@ -85,8 +90,8 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
     return null;
   };
 
-  const handleAsk = useCallback(async () => {
-    const err = validate(question);
+  const executeAsk = useCallback(async (promptText: string) => {
+    const err = validate(promptText);
     if (err) {
       setValidationError(err);
       textareaRef.current?.focus();
@@ -96,7 +101,7 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
     setState('loading');
     setErrorMessage(null);
     try {
-      const response = await askClipboard({ question: question.trim() });
+      const response = await askClipboard({ question: promptText.trim() });
       setResult(response);
       setState('success');
     } catch (e: unknown) {
@@ -107,7 +112,16 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
       setErrorMessage(msg);
       setState('error');
     }
-  }, [question]);
+  }, [setErrorMessage, setResult, setState, setValidationError]);
+
+  const handleAsk = useCallback(() => {
+    executeAsk(question);
+  }, [executeAsk, question]);
+
+  const handlePreset = (presetPrompt: string) => {
+    setQuestion(presetPrompt);
+    executeAsk(presetPrompt);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -189,15 +203,24 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
             <h2 className="empty-state-title">No clipboard history available yet.</h2>
             <p className="empty-state-desc">
               Start capturing clipboard entries with the Desktop Agent, then come back to ask
-              questions about your history.
+              questions about your history. You can also ask general programming and AI questions anytime.
             </p>
-            {onNavigateToClipboard && (
-              <div className="empty-state-actions">
-                <button className="btn-primary empty-state-cta" onClick={() => onNavigateToClipboard()}>
+            <div className="empty-state-actions">
+              <button
+                className="btn-primary empty-state-ask-cta"
+                onClick={() => {
+                  setQuestion('What is a Java HashMap?');
+                  textareaRef.current?.focus();
+                }}
+              >
+                Ask General AI Question
+              </button>
+              {onNavigateToClipboard && (
+                <button className="btn-secondary empty-state-cta" onClick={() => onNavigateToClipboard()}>
                   Go to Clipboard
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
@@ -210,7 +233,7 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
                 <textarea
                   ref={textareaRef}
                   className={`ask-textarea${validationError ? ' ask-textarea--error' : ''}`}
-                  placeholder="Ask a question about your clipboard history…"
+                  placeholder="Type your question or instruction about your clipboard or any topic…"
                   value={question}
                   onChange={(e) => {
                     setQuestion(e.target.value);
@@ -250,9 +273,33 @@ export const AskClipboardPage: React.FC<AskClipboardPageProps> = ({
                   ) : (
                     <>
                       <MessageSquare size={14} />
-                      Ask
+                      Ask AI
                     </>
                   )}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary ask-preset-btn"
+                  onClick={() => handlePreset('Explain my most recent clipboard entry')}
+                  disabled={state === 'loading'}
+                  title="Explain latest clipboard entry"
+                  aria-label="Explain latest clipboard entry"
+                >
+                  <Sparkles size={14} />
+                  Explain
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary ask-preset-btn"
+                  onClick={() => handlePreset('Summarize my latest clipboard entry')}
+                  disabled={state === 'loading'}
+                  title="Summarize latest clipboard entry"
+                  aria-label="Summarize latest clipboard entry"
+                >
+                  <FileText size={14} />
+                  Summarize
                 </button>
 
                 {(result || state === 'error') && (

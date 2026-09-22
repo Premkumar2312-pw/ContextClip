@@ -168,6 +168,6 @@ def test_groq_service_vision_completion_unit():
                     ]
                 }
             ],
-            model="llama-3.2-11b-vision-preview",
+            model=service.vision_model,
             temperature=0.2
         )

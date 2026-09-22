@@ -1126,8 +1126,13 @@ button, input, select, textarea {
 
 .image-viewer-backdrop {
   position: fixed;
-  inset: 0;
-  z-index: 9999;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
   background-color: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(6px);
   display: flex;
@@ -1143,7 +1148,7 @@ button, input, select, textarea {
   top: 16px;
   left: 0;
   right: 0;
-  z-index: 10000;
+  z-index: 100000;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1239,7 +1244,10 @@ button, input, select, textarea {
   border-radius: 6px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   transition: transform 0.15s ease-out;
+  transform-origin: center center;
+  will-change: transform;
   user-select: none;
+  pointer-events: auto;
 }
 
 .clipboard-card-footer {
@@ -1607,6 +1615,21 @@ button, input, select, textarea {
 .ask-submit-btn {
   padding: 9px 20px;
   font-size: 13.5px;
+}
+
+.ask-preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.empty-state-ask-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .ask-clear-btn {

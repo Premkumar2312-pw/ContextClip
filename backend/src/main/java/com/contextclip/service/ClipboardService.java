@@ -202,34 +202,140 @@ public class ClipboardService {
         }
 
         String cleanQuestion = question.trim();
+        String lowerQ = cleanQuestion.toLowerCase();
+        boolean hasImageKeyword = lowerQ.matches(".*\\b(image|screenshot|picture|diagram|photo)\\b.*");
+        boolean hasRecentTarget = lowerQ.matches(".*\\b(latest|recent|most\\s+recent|last|this)\\b.*");
+
         List<ClipboardEntry> relevantEntries = findRelevantEntries(cleanQuestion, user);
 
-        if (relevantEntries.isEmpty()) {
-            return new ClipboardQuestionResponse("No clipboard entries found in your history to answer this question.", List.of());
-        }
-
-        // Check if question asks about an image and an image entry is present
-        String lowerQ = cleanQuestion.toLowerCase();
-        if ((lowerQ.contains("image") || lowerQ.contains("screenshot") || lowerQ.contains("picture") || lowerQ.contains("diagram") || lowerQ.contains("photo"))) {
-            ClipboardEntry imageEntry = relevantEntries.stream()
-                    .filter(e -> "IMAGE".equalsIgnoreCase(e.getType()) || (e.getContent() != null && e.getContent().startsWith("data:image/")))
+        // Check if we should route to AI Vision
+        ClipboardEntry targetImageEntry = null;
+        if (hasImageKeyword) {
+            targetImageEntry = relevantEntries.stream()
+                    .filter(this::isImageEntry)
                     .findFirst()
                     .orElse(null);
-            if (imageEntry != null) {
-                String visionPrompt = "The user asks: \"" + cleanQuestion + "\". Analyze this image from their clipboard and answer their question directly, concisely, and accurately.";
-                String answer = aiServiceClient.generateVisionResponse(visionPrompt, imageEntry.getContent());
-                return new ClipboardQuestionResponse(answer, List.of(imageEntry.getId()));
+            if (targetImageEntry == null && user != null) {
+                targetImageEntry = clipboardRepository.findByUserOrderByCapturedAtDesc(user).stream()
+                        .filter(this::isImageEntry)
+                        .findFirst()
+                        .orElse(null);
+            } else if (targetImageEntry == null) {
+                targetImageEntry = clipboardRepository.findAll().stream()
+                        .filter(this::isImageEntry)
+                        .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                        .findFirst()
+                        .orElse(null);
             }
+        } else if (hasRecentTarget && !relevantEntries.isEmpty() && isImageEntry(relevantEntries.get(0))) {
+            targetImageEntry = relevantEntries.get(0);
         }
 
-        String prompt = buildAskPrompt(cleanQuestion, relevantEntries);
-        String answer = aiServiceClient.generateResponse(prompt);
+        if (targetImageEntry != null) {
+            String visionPrompt = "The user asks: \"" + cleanQuestion + "\". Analyze this image from their clipboard and answer their question directly, concisely, and accurately.";
+            String answer = aiServiceClient.generateVisionResponse(visionPrompt, targetImageEntry.getContent());
+            return new ClipboardQuestionResponse(answer, List.of(targetImageEntry.getId()));
+        }
 
-        List<Long> sources = relevantEntries.stream()
-                .map(ClipboardEntry::getId)
-                .toList();
+        if (hasImageKeyword && targetImageEntry == null) {
+            return new ClipboardQuestionResponse("No image clipboard entries found in your history to answer this question.", List.of());
+        }
 
-        return new ClipboardQuestionResponse(answer, sources);
+        // Check if the prompt is asking about clipboard content
+        if (isClipboardAware(cleanQuestion)) {
+            if (relevantEntries.isEmpty()) {
+                return new ClipboardQuestionResponse("No clipboard entries found in your history to answer this question.", List.of());
+            }
+
+            String prompt = buildAskPrompt(cleanQuestion, relevantEntries);
+            String answer = aiServiceClient.generateResponse(prompt);
+
+            List<Long> sources = relevantEntries.stream()
+                    .map(ClipboardEntry::getId)
+                    .toList();
+
+            return new ClipboardQuestionResponse(answer, sources);
+        }
+
+        // General AI prompt — no clipboard context attached
+        String generalPrompt = String.format("""
+            You are the ContextClip assistant, an intelligent AI helper for developers and students.
+            Answer the following question clearly, accurately, and concisely. Use GitHub Flavored Markdown for formatting, code snippets, lists, or tables where appropriate.
+
+            Question:
+            %s
+            """, cleanQuestion).trim();
+
+        String answer = aiServiceClient.generateResponse(generalPrompt);
+        return new ClipboardQuestionResponse(answer, List.of());
+    }
+
+    public boolean isClipboardAware(String question) {
+        if (question == null || question.isBlank()) {
+            return false;
+        }
+        String lower = question.toLowerCase().trim();
+
+        // Check for specific entry references e.g. "entry #12", "entry 5"
+        if (lower.matches(".*\\bentry\\s*#?\\d+\\b.*")) {
+            return true;
+        }
+
+        // Check for explicit clipboard / copied / saved / history / entry terms
+        if (lower.matches(".*\\b(clipboard|history|copied|copi(?:ed)?|paste|pasted|saved|entries|entry|snippet|snippets)\\b.*")) {
+            return true;
+        }
+
+        // Check for personal possessive references to user's code, commands, or data
+        if (lower.matches(".*\\b(my|our)\\s+(code|commands?|sql|queries|query|docker|git|text|image|images|screenshot|screenshots|history|data|items?|logs?)\\b.*")) {
+            return true;
+        }
+
+        // Check for personal question constructs e.g. "have I copied", "did I save", "what did I", "what do I have"
+        if (lower.matches(".*\\b(have|did|do|can)\\s+(i|we)\\b.*")) {
+            return true;
+        }
+
+        // Check for relative phrases e.g. "in my ...", "from my ...", "of my ..."
+        if (lower.matches(".*\\b(in|from|of)\\s+(my|our)\\b.*")) {
+            return true;
+        }
+
+        // Check for demonstrative references e.g. "this code", "this snippet", "this command", "this error", "these entries"
+        if (lower.matches(".*\\bthis\\s+(code|snippet|command|query|error|message|exception|image|screenshot|entry|text)\\b.*")) {
+            return true;
+        }
+        if (lower.matches(".*\\bthese\\s+(entries|snippets|commands|queries|errors)\\b.*")) {
+            return true;
+        }
+
+        // Check for "the code", "the command", "the snippet", "the error", "the query"
+        if (lower.matches(".*\\bthe\\s+(code|snippets?|commands?|queries|query|error|exception|docker commands?|git commands?)\\b.*")) {
+            return true;
+        }
+
+        // Check for "all entries", "which entries", "what entries"
+        if (lower.matches(".*\\b(all|which|what)\\s+entries\\b.*")) {
+            return true;
+        }
+
+        // Check for image references
+        if (lower.matches(".*\\b(image|screenshot|picture|diagram|photo)\\b.*")) {
+            return true;
+        }
+
+        // Check for latest/recent references when combined with actions
+        if (lower.matches(".*\\b(latest|recent|most\\s+recent|last)\\b.*")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean isImageEntry(ClipboardEntry e) {
+        if (e == null) return false;
+        return "IMAGE".equalsIgnoreCase(e.getType()) ||
+                (e.getContent() != null && e.getContent().startsWith("data:image/"));
     }
 
     public List<ClipboardEntry> findRelevantEntries(String question) {
