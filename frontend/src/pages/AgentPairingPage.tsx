@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { getAgentToken, createPairingCode } from '../api/clipboardApi';
 import {
-  MonitorSmartphone,
   KeyRound,
   Eye,
   EyeOff,
@@ -222,150 +221,179 @@ export const AgentPairingPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Pairing Workflow Card */}
-        <div className="agent-pairing-card">
-          <div className="agent-pairing-header">
-            <div className="agent-pairing-icon">
-              <MonitorSmartphone size={22} />
+        {/* Pairing Workflow Card (Expandable Manual / CLI Fallback) */}
+        <details className="agent-pairing-card manual-setup-details" style={{ padding: 0, overflow: 'hidden' }}>
+          <summary
+            className="agent-pairing-header manual-setup-summary"
+            style={{
+              padding: '24px 32px',
+              margin: 0,
+              cursor: 'pointer',
+              userSelect: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              listStyle: 'none',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div className="agent-pairing-icon" style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>
+                <Terminal size={22} />
+              </div>
+              <div>
+                <h2 className="agent-pairing-title" style={{ margin: 0, fontSize: 16 }}>
+                  Advanced / Manual CLI Setup
+                </h2>
+                <p className="agent-pairing-subtitle" style={{ margin: '2px 0 0', fontSize: 13 }}>
+                  Generate a pairing token manually and configure the desktop agent via command line.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="agent-pairing-title">Device Pairing &amp; Setup (Manual / CLI Fallback)</h2>
-              <p className="agent-pairing-subtitle">
-                ContextClip uses a personal pairing token to securely associate background clipboard
-                captures with your personal account.
-              </p>
-            </div>
-          </div>
-
-          <div className="agent-pairing-warning">
-            <AlertTriangle size={15} />
-            <span>
-              <strong>Device-to-Account Pairing:</strong> Each pairing token is bound to your username.
-              Captures made by the desktop agent will only appear in your account. If multiple users share
-              this machine, re-pairing associates future captures with the new active user.
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--accent-primary)',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              Toggle Details <ChevronRight size={14} />
             </span>
-          </div>
+          </summary>
 
-          {/* Step 1: Generate token */}
-          <div className="agent-step">
-            <div className="agent-step-num">1</div>
-            <div className="agent-step-body">
-              <h3 className="agent-step-title">Generate Your Personal Pairing Token</h3>
-              <p className="agent-step-desc">
-                Generate an authenticated personal pairing token for this device. This authorizes your local
-                agent to securely synchronize captures with your account.
-              </p>
-              <button
-                className="btn-primary agent-generate-btn"
-                onClick={handleGenerateToken}
-                disabled={generating}
-                data-testid="generate-agent-token-btn"
-              >
-                {generating ? (
-                  <>
-                    <span className="btn-spinner" aria-hidden="true" />
-                    Generating…
-                  </>
-                ) : (
-                  <>
-                    <KeyRound size={15} />
-                    Generate Token
-                    <ChevronRight size={14} />
-                  </>
+          <div style={{ padding: '0 32px 32px', borderTop: '1px solid var(--border-subtle)', paddingTop: 20 }}>
+            <div className="agent-pairing-warning">
+              <AlertTriangle size={15} />
+              <span>
+                <strong>Device-to-Account Pairing:</strong> Each pairing token is bound to your username.
+                Captures made by the desktop agent will only appear in your account. If multiple users share
+                this machine, re-pairing associates future captures with the new active user.
+              </span>
+            </div>
+
+            {/* Step 1: Generate token */}
+            <div className="agent-step">
+              <div className="agent-step-num">1</div>
+              <div className="agent-step-body">
+                <h3 className="agent-step-title">Generate Your Personal Pairing Token</h3>
+                <p className="agent-step-desc">
+                  Generate an authenticated personal pairing token for this device. This authorizes your local
+                  agent to securely synchronize captures with your account.
+                </p>
+                <button
+                  className="btn-primary agent-generate-btn"
+                  onClick={handleGenerateToken}
+                  disabled={generating}
+                  data-testid="generate-agent-token-btn"
+                >
+                  {generating ? (
+                    <>
+                      <span className="btn-spinner" aria-hidden="true" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound size={15} />
+                      Generate Token
+                      <ChevronRight size={14} />
+                    </>
+                  )}
+                </button>
+
+                {error && (
+                  <div className="agent-error" role="alert">
+                    <AlertTriangle size={14} />
+                    <span>{error}</span>
+                  </div>
                 )}
-              </button>
 
-              {error && (
-                <div className="agent-error" role="alert">
-                  <AlertTriangle size={14} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {token && (
-                <div className="agent-token-box" data-testid="agent-token-display">
-                  <div className="agent-token-meta">
-                    <ShieldCheck size={14} className="agent-token-meta-icon" />
-                    <span>
-                      Personal Pairing Token for <strong>{tokenUsername}</strong>
-                    </span>
-                  </div>
-                  <div className="agent-token-row">
-                    <code className="agent-token-value" data-testid="agent-token-value">
-                      {showToken ? token : maskedToken}
-                    </code>
-                    <div className="agent-token-actions">
-                      <button
-                        className="btn-icon"
-                        onClick={() => setShowToken((v) => !v)}
-                        aria-label={showToken ? 'Hide token' : 'Reveal token'}
-                        title={showToken ? 'Hide token' : 'Reveal token'}
-                      >
-                        {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                      <button
-                        className="btn-icon"
-                        onClick={handleCopyToken}
-                        aria-label="Copy token to clipboard"
-                        title="Copy token"
-                        data-testid="copy-agent-token-btn"
-                      >
-                        {copied ? (
-                          <Check size={15} style={{ color: 'var(--color-success)' }} />
-                        ) : (
-                          <Copy size={15} />
-                        )}
-                      </button>
+                {token && (
+                  <div className="agent-token-box" data-testid="agent-token-display">
+                    <div className="agent-token-meta">
+                      <ShieldCheck size={14} className="agent-token-meta-icon" />
+                      <span>
+                        Personal Pairing Token for <strong>{tokenUsername}</strong>
+                      </span>
                     </div>
+                    <div className="agent-token-row">
+                      <code className="agent-token-value" data-testid="agent-token-value">
+                        {showToken ? token : maskedToken}
+                      </code>
+                      <div className="agent-token-actions">
+                        <button
+                          className="btn-icon"
+                          onClick={() => setShowToken((v) => !v)}
+                          aria-label={showToken ? 'Hide token' : 'Reveal token'}
+                          title={showToken ? 'Hide token' : 'Reveal token'}
+                        >
+                          {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                        <button
+                          className="btn-icon"
+                          onClick={handleCopyToken}
+                          aria-label="Copy token to clipboard"
+                          title="Copy token"
+                          data-testid="copy-agent-token-btn"
+                        >
+                          {copied ? (
+                            <Check size={15} style={{ color: 'var(--color-success)' }} />
+                          ) : (
+                            <Copy size={15} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="agent-token-caution">
+                      Keep this token secure. It serves as your personal authentication key for this device.
+                    </p>
                   </div>
-                  <p className="agent-token-caution">
-                    Keep this token secure. It serves as your personal authentication key for this device.
-                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Step 2: Configure agent */}
+            <div className="agent-step">
+              <div className="agent-step-num">2</div>
+              <div className="agent-step-body">
+                <h3 className="agent-step-title">Configure the Desktop Agent (Current MVP)</h3>
+                <p className="agent-step-desc">
+                  Save your pairing token into the desktop agent's configuration using the command line:
+                </p>
+                <div className="agent-cmd-block">
+                  <Terminal size={14} className="agent-cmd-icon" />
+                  <code className="agent-cmd-text">
+                    java -jar contextclip-agent.jar --set-token YOUR_TOKEN_HERE
+                  </code>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Step 2: Configure agent */}
-          <div className="agent-step">
-            <div className="agent-step-num">2</div>
-            <div className="agent-step-body">
-              <h3 className="agent-step-title">Configure the Desktop Agent (Current MVP)</h3>
-              <p className="agent-step-desc">
-                Save your pairing token into the desktop agent's configuration using the command line:
-              </p>
-              <div className="agent-cmd-block">
-                <Terminal size={14} className="agent-cmd-icon" />
-                <code className="agent-cmd-text">
-                  java -jar contextclip-agent.jar --set-token YOUR_TOKEN_HERE
-                </code>
+                <p className="agent-step-desc" style={{ marginTop: 8 }}>
+                  The agent securely stores this token in your local profile at{' '}
+                  <code className="inline-code">%USERPROFILE%\.contextclip\agent.properties</code>.
+                </p>
               </div>
-              <p className="agent-step-desc" style={{ marginTop: 8 }}>
-                The agent securely stores this token in your local profile at{' '}
-                <code className="inline-code">%USERPROFILE%\.contextclip\agent.properties</code>.
-              </p>
             </div>
-          </div>
 
-          {/* Step 3: Start and verify */}
-          <div className="agent-step">
-            <div className="agent-step-num">3</div>
-            <div className="agent-step-body">
-              <h3 className="agent-step-title">Start Automatic Clipboard Capture</h3>
-              <p className="agent-step-desc">
-                Launch the desktop agent. Copy any text, code snippet, or command. Then open{' '}
-                <strong>Clipboard History</strong> to see captures appearing in real time.
-              </p>
-              <div className="agent-step-security-note">
-                <ShieldCheck size={13} />
-                <span>
-                  All clipboard entries remain strictly isolated to your account. No other user can see,
-                  search, or access your captures.
-                </span>
+            {/* Step 3: Start and verify */}
+            <div className="agent-step">
+              <div className="agent-step-num">3</div>
+              <div className="agent-step-body">
+                <h3 className="agent-step-title">Start Automatic Clipboard Capture</h3>
+                <p className="agent-step-desc">
+                  Launch the desktop agent. Copy any text, code snippet, or command. Then open{' '}
+                  <strong>Clipboard History</strong> to see captures appearing in real time.
+                </p>
+                <div className="agent-step-security-note">
+                  <ShieldCheck size={13} />
+                  <span>
+                    All clipboard entries remain strictly isolated to your account. No other user can see,
+                    search, or access your captures.
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </details>
 
         {/* Roadmap: MVP vs Commercial Onboarding */}
         <div className="agent-roadmap-card">

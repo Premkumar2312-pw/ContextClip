@@ -13,24 +13,24 @@ import java.util.regex.Pattern;
  * <p>Classification priority (evaluated in order):
  * <ol>
  *   <li>Sensitivity check (JWT, API key, private key, password patterns)</li>
- *   <li>JSON</li>
- *   <li>XML</li>
- *   <li>URL</li>
+ *   <li>Image Data URL</li>
+ *   <li>Phone number (with IPv4 guard)</li>
  *   <li>Email</li>
- *   <li>UUID</li>
- *   <li>IP address</li>
- *   <li>File path</li>
- *   <li>Stack trace / error</li>
+ *   <li>URL</li>
+ *   <li>Identifiers / Network (IPv4, IPv6, MAC, UUID, Hashes)</li>
+ *   <li>Error / Stack trace (compiler errors, runtime exceptions, build errors)</li>
+ *   <li>Mathematical / Scientific formulas (LaTeX, Unicode math, calculus, physics)</li>
  *   <li>SQL</li>
- *   <li>Terminal command</li>
- *   <li>Configuration (Dockerfile, YAML, .properties, POM)</li>
- *   <li>Code (language-specific keyword sets with false-positive guard)</li>
- *   <li>CSV</li>
+ *   <li>Terminal command (Linux, Windows, Git, Docker, K8s, Package Managers)</li>
+ *   <li>Code (C, C++, C#, Go, Rust, Java, Python, TypeScript, JavaScript, Swift, Kotlin, etc.)</li>
+ *   <li>Configuration (Dockerfile, Makefile, YAML, TOML, .properties, POM)</li>
+ *   <li>Structured Data (JSON, XML, CSV, File path)</li>
  *   <li>Markdown</li>
+ *   <li>Multilingual natural text (Tamil, Hindi, Japanese, Chinese, Arabic, Cyrillic, etc.)</li>
  *   <li>Plain text fallback</li>
  * </ol>
  *
- * <p>Normal English sentences that merely mention technology names (e.g. "I am learning
+ * <p>Normal natural language sentences that merely mention technology names (e.g. "I am learning
  * Docker today") are NOT classified as CODE or COMMAND unless concrete syntax markers
  * are present.
  */
@@ -53,7 +53,7 @@ public class ClipboardClassifier {
             "(?i)(password|passwd|pwd)\\s*[=:]\\s*[\\S]{4,}");
 
     // -------------------------------------------------------------------------
-    // URL / Email / UUID / IP / File path
+    // URL / Email / UUID / IP / MAC / Hashes / File path
     // -------------------------------------------------------------------------
 
     private static final Pattern URL_PATTERN = Pattern.compile(
@@ -64,10 +64,62 @@ public class ClipboardClassifier {
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
     private static final Pattern IPV4_PATTERN = Pattern.compile(
             "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)(:\\d{1,5})?$");
+    private static final Pattern IPV6_PATTERN = Pattern.compile(
+            "^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}|fe80::[0-9a-fA-F:]+)$");
+    private static final Pattern MAC_PATTERN = Pattern.compile(
+            "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
+    private static final Pattern HASH_PATTERN = Pattern.compile(
+            "^([0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$");
     private static final Pattern FILE_PATH_WINDOWS = Pattern.compile(
             "^[A-Za-z]:\\\\(\\S+\\\\)*\\S*$");
     private static final Pattern FILE_PATH_UNIX = Pattern.compile(
             "^(/[^/\\s]+)+/?$");
+    private static final Pattern PHONE_PATTERN = Pattern.compile(
+            "^\\+?(\\d{1,4}[-.\\s]?)?(\\(?\\d{2,4}\\)?[-.\\s]?)?[\\d.\\s-]{6,14}\\d$");
+
+    // -------------------------------------------------------------------------
+    // Mathematical & Scientific Formulas (LaTeX + Unicode Math)
+    // -------------------------------------------------------------------------
+
+    private static final Pattern LATEX_MATH_COMMAND = Pattern.compile(
+            "\\\\(int|iint|iiint|oint|sum|prod|coprod|frac|dfrac|tfrac|partial|nabla|sqrt|lim|limsup|liminf|infty|" +
+            "alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|" +
+            "rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|" +
+            "Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|" +
+            "times|div|cdot|pm|mp|approx|neq|leq|geq|ll|gg|in|notin|subset|supset|subseteq|supseteq|" +
+            "forall|exists|nexists|emptyset|to|rightarrow|leftarrow|Rightarrow|Leftarrow|Leftrightarrow|" +
+            "mathbf|mathrm|mathit|mathbb|mathcal|begin\\{(matrix|pmatrix|bmatrix|vmatrix|Vmatrix|equation|align|gather)\\})"
+    );
+
+    private static final Pattern UNICODE_MATH_SYMBOLS = Pattern.compile(
+            "[∫∬∭∮∯∰∇∂∑∏√∛∜∞≈≠≤≥∈∉⊂⊃⊆⊇∀∃∄∅±×÷·←→↔⇐⇒⇔↦∝∼≅≡≪≫⊕⊖⊗⊘⊙⊢⊨∧∨∩∪∴∵∶∷]"
+    );
+
+    private static final Pattern GREEK_MATH_LETTERS = Pattern.compile(
+            "[αβγδεζηθικλμνξπρστυφχψωΓΔΘΛΞΠΣΦΨΩ]"
+    );
+
+    private static final Pattern MATH_SUPERSCRIPTS_SUBSCRIPTS = Pattern.compile(
+            "[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎]"
+    );
+
+    // -------------------------------------------------------------------------
+    // Multilingual Scripts
+    // -------------------------------------------------------------------------
+
+    private static final Pattern SCRIPT_TAMIL     = Pattern.compile("[\\u0B80-\\u0BFF]");
+    private static final Pattern SCRIPT_HINDI     = Pattern.compile("[\\u0900-\\u097F]");
+    private static final Pattern SCRIPT_TELUGU    = Pattern.compile("[\\u0C00-\\u0C7F]");
+    private static final Pattern SCRIPT_KANNADA   = Pattern.compile("[\\u0C80-\\u0CFF]");
+    private static final Pattern SCRIPT_MALAYALAM = Pattern.compile("[\\u0D00-\\u0D7F]");
+    private static final Pattern SCRIPT_BENGALI   = Pattern.compile("[\\u0980-\\u09FF]");
+    private static final Pattern SCRIPT_GUJARATI  = Pattern.compile("[\\u0A80-\\u0AFF]");
+    private static final Pattern SCRIPT_PUNJABI   = Pattern.compile("[\\u0A00-\\u0A7F]");
+    private static final Pattern SCRIPT_ARABIC    = Pattern.compile("[\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF]");
+    private static final Pattern SCRIPT_JAPANESE  = Pattern.compile("[\\u3040-\\u309F\\u30A0-\\u30FF]");
+    private static final Pattern SCRIPT_CHINESE   = Pattern.compile("[\\u4E00-\\u9FFF]");
+    private static final Pattern SCRIPT_KOREAN    = Pattern.compile("[\\uAC00-\\uD7AF\\u1100-\\u11FF]");
+    private static final Pattern SCRIPT_CYRILLIC  = Pattern.compile("[\\u0400-\\u04FF]");
 
     // -------------------------------------------------------------------------
     // SQL
@@ -87,9 +139,12 @@ public class ClipboardClassifier {
             "Traceback \\(most recent call last\\):");
     private static final Pattern EXCEPTION_PATTERN = Pattern.compile(
             "\\b[A-Za-z][A-Za-z0-9_$]*(Exception|Error)\\b.*:(.*\\n)?\\s+at\\s+");
-
-    private static final Pattern PHONE_PATTERN = Pattern.compile(
-            "^\\+?(\\d{1,4}[-.\\s]?)?(\\(?\\d{2,4}\\)?[-.\\s]?)?[\\d.\\s-]{6,14}\\d$");
+    private static final Pattern PYTHON_EXCEPTION_LINE = Pattern.compile(
+            "(?m)^([A-Za-z0-9_]*(?:Exception|Error)):\\s+.*");
+    private static final Pattern JAVA_EXCEPTION_LINE = Pattern.compile(
+            "(?m)^(Exception in thread \"[^\"]+\"|Caused by:)\\s+([a-zA-Z0-9_.$]+(?:Exception|Error)):?\\s*.*");
+    private static final Pattern BUILD_OR_TOOL_ERROR = Pattern.compile(
+            "(?m)^(npm (ERR!|error)|\\[ERROR\\] Failed to execute goal|BUILD FAILURE|FAILURE: Build failed with an exception|error\\[E\\d+\\]:|error TS\\d+:|fatal: not a git repository|fatal: destination path|error: failed to push some refs|Error response from daemon:|HTTP\\s+(4\\d\\d|5\\d\\d)|status code (4\\d\\d|5\\d\\d)|ECONNREFUSED|ETIMEDOUT)");
 
     // -------------------------------------------------------------------------
     // Terminal commands
@@ -101,23 +156,37 @@ public class ClipboardClassifier {
             "^git\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern MAVEN_CMD = Pattern.compile(
             "^(\\./)?(mvn|mvnw)\\s+.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern GRADLE_CMD = Pattern.compile(
+            "^(\\./)?(gradle|gradlew)\\s+.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern NODE_CMD = Pattern.compile(
             "^(node|nodejs|npm|npx|yarn|pnpm|bun|deno)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern PYTHON_CMD = Pattern.compile(
             "^(python[23]?|py|pip[23]?|pytest|poetry|uv|pipenv|conda)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern JAVA_CMD = Pattern.compile(
-            "^(java|javac|javadoc|jar|gradle|\\./gradlew|gradlew)\\s+.*", Pattern.CASE_INSENSITIVE);
+            "^(java|javac|javadoc|jar)\\s+.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RUST_CMD = Pattern.compile(
+            "^cargo\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern GO_CMD = Pattern.compile(
+            "^go\\s+(run|build|test|get|mod|install|fmt|vet)\\s+.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DOTNET_CMD = Pattern.compile(
+            "^dotnet\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern COMPOSER_CMD = Pattern.compile(
+            "^composer\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RUBY_CMD = Pattern.compile(
+            "^(gem|bundle|rake|ruby)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern KUBECTL_CMD = Pattern.compile(
-            "^kubectl\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+            "^(kubectl|helm)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern AWS_CMD = Pattern.compile(
             "^aws\\s+\\S.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PKG_MGR_CMD = Pattern.compile(
+            "^(brew|apt|apt-get|yum|dnf|pacman|winget|choco)\\s+\\S.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CMD = Pattern.compile(
-            "^(cd|ls|dir|cat|echo|curl|wget|sudo|chmod|mkdir|rm|ps|kill|export|set|grep|find|sed|awk|tail|head|ssh|scp|cp|mv|touch|ping|netstat|ifconfig|ip\\s|systemctl|service\\s|apt|yum|brew|choco)\\s.*",
+            "^(cd|ls|dir|cat|echo|curl|wget|sudo|chmod|chown|mkdir|rmdir|rm|ps|kill|top|htop|df|du|export|set|setx|grep|find|sed|awk|tail|head|ssh|scp|cp|mv|touch|ping|traceroute|netstat|ifconfig|ip|systemctl|journalctl|service|cls|clear|tasklist|taskkill|ipconfig)\\s.*",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_SHEBANG = Pattern.compile(
             "^#!\\s*/.*/(bash|sh|zsh|fish|python|ruby|perl|node)\\b");
     private static final Pattern POWERSHELL_CMD = Pattern.compile(
-            "^(Get-|Set-|New-|Remove-|Invoke-|Start-|Stop-|Write-|Read-|Import-|Export-|Add-|Test-|Update-|Install-|Uninstall-)\\w+.*",
+            "^(Get-|Set-|New-|Remove-|Invoke-|Start-|Stop-|Write-|Read-|Import-|Export-|Add-|Test-|Update-|Install-|Uninstall-|powershell|pwsh)\\b.*",
             Pattern.CASE_INSENSITIVE);
 
     // -------------------------------------------------------------------------
@@ -143,16 +212,17 @@ public class ClipboardClassifier {
             "(^|\\n)(on:|jobs:|steps:|uses:|runs-on:)");
     private static final Pattern SPRING_PROPS = Pattern.compile(
             "(spring\\.(application|datasource|jpa|security|boot)|server\\.port|logging\\.level)");
+    private static final Pattern TOML_STRUCTURE = Pattern.compile(
+            "(^|\\n)\\s*\\[[a-zA-Z0-9._-]+\\]\\s*\\n");
+    private static final Pattern MAKEFILE_STRUCTURE = Pattern.compile(
+            "(^|\\n)(\\.PHONY:|[a-zA-Z0-9._-]+:.*\\n\\t\\S+)");
 
     // -------------------------------------------------------------------------
-    // CSV
+    // CSV & Markdown
     // -------------------------------------------------------------------------
+
     private static final Pattern CSV_PATTERN = Pattern.compile(
             "^([^,\\n]+,){2,}[^,\\n]*(\\n([^,\\n]+,){2,}[^,\\n]*){1,}$");
-
-    // -------------------------------------------------------------------------
-    // Markdown
-    // -------------------------------------------------------------------------
     private static final Pattern MARKDOWN_PATTERN = Pattern.compile(
             "(^#{1,6}\\s.+|^\\*\\*.+\\*\\*|^- .+|^\\d+\\. .+|^```|^>\\s.+)",
             Pattern.MULTILINE);
@@ -190,28 +260,49 @@ public class ClipboardClassifier {
             return classifyUrl(trimmed, isSensitive);
         }
 
-        // 5. Terminal commands (first non-empty line must match — guards against prose mentioning a tool)
-        ClassificationResult cmdResult = checkCommand(trimmed, isSensitive);
-        if (cmdResult != null) return cmdResult;
+        // 5. Network & Identifiers (UUID, IPv4, IPv6, MAC, Hash)
+        if (UUID_PATTERN.matcher(trimmed).matches()) {
+            return ClassificationResult.of("UUID", null, List.of(), List.of("IDENTIFIER"), isSensitive, 0.98f);
+        }
+        if (IPV4_PATTERN.matcher(trimmed).matches()) {
+            return ClassificationResult.of("IP_ADDRESS", null, List.of(), List.of("NETWORKING"), isSensitive, 1.0f);
+        }
+        if (IPV6_PATTERN.matcher(trimmed).matches()) {
+            return ClassificationResult.of("IP_ADDRESS", null, List.of(), List.of("NETWORKING"), isSensitive, 0.98f);
+        }
+        if (MAC_PATTERN.matcher(trimmed).matches()) {
+            return ClassificationResult.of("MAC_ADDRESS", null, List.of(), List.of("NETWORKING"), isSensitive, 0.98f);
+        }
+        if (HASH_PATTERN.matcher(trimmed).matches()) {
+            return ClassificationResult.of("HASH", null, List.of(), List.of("IDENTIFIER"), isSensitive, 0.95f);
+        }
 
-        // 6. Stack trace / error
+        // 6. Stack trace / error message
         ClassificationResult errResult = checkError(trimmed, isSensitive);
         if (errResult != null) return errResult;
 
-        // 7. SQL
+        // 7. Mathematical / Scientific formulas (LaTeX & Unicode Math)
+        ClassificationResult mathResult = checkMath(trimmed, isSensitive);
+        if (mathResult != null) return mathResult;
+
+        // 8. SQL
         if (isSql(trimmed)) {
             return ClassificationResult.of("SQL", "SQL", List.of("SQL"), List.of("DATABASE"), isSensitive, 0.98f);
         }
 
-        // 8. Code (language-specific, with false-positive guard)
+        // 9. Terminal commands (first non-empty line must match — guards against prose mentioning a tool)
+        ClassificationResult cmdResult = checkCommand(trimmed, isSensitive);
+        if (cmdResult != null) return cmdResult;
+
+        // 10. Code (language-specific, with false-positive guard)
         ClassificationResult codeResult = checkCode(trimmed, isSensitive);
         if (codeResult != null) return codeResult;
 
-        // 9. Configuration files
+        // 11. Configuration files
         ClassificationResult configResult = checkConfiguration(trimmed, isSensitive);
         if (configResult != null) return configResult;
 
-        // 10. Structured Data (JSON / XML / UUID / IP / File Path / CSV)
+        // 12. Structured Data (JSON / XML / CSV / File Path)
         if (isJson(trimmed)) {
             List<String> techs = new ArrayList<>();
             if (trimmed.contains("\"token\"") || trimmed.contains("\"jwt\"") || trimmed.contains("\"access_token\"")) {
@@ -229,14 +320,6 @@ public class ClipboardClassifier {
             return ClassificationResult.of("XML", null, techs, List.of("DATA"), isSensitive, 1.0f);
         }
 
-        if (UUID_PATTERN.matcher(trimmed).matches()) {
-            return ClassificationResult.of("UUID", null, List.of(), List.of("IDENTIFIER"), isSensitive, 0.98f);
-        }
-
-        if (IPV4_PATTERN.matcher(trimmed).matches()) {
-            return ClassificationResult.of("IP_ADDRESS", null, List.of(), List.of("NETWORKING"), isSensitive, 1.0f);
-        }
-
         if (!trimmed.contains("\n") && (FILE_PATH_WINDOWS.matcher(trimmed).matches() || FILE_PATH_UNIX.matcher(trimmed).matches())) {
             return ClassificationResult.of("FILE_PATH", null, List.of(), List.of("FILESYSTEM"), isSensitive, 0.9f);
         }
@@ -245,12 +328,16 @@ public class ClipboardClassifier {
             return ClassificationResult.of("CSV", null, List.of(), List.of("DATA"), isSensitive, 0.85f);
         }
 
-        // 11. Markdown
+        // 13. Markdown
         if (isMarkdown(trimmed)) {
             return ClassificationResult.of("MARKDOWN", null, List.of(), List.of("DOCUMENTATION"), isSensitive, 0.8f);
         }
 
-        // 12. Sensitive fallback (if sensitive but no other type matched)
+        // 14. Multilingual natural text
+        ClassificationResult multiResult = checkMultilingual(trimmed, isSensitive);
+        if (multiResult != null) return multiResult;
+
+        // 15. Sensitive fallback (if sensitive but no other type matched)
         if (isSensitive) {
             return ClassificationResult.sensitiveText("PLAIN_TEXT");
         }
@@ -324,34 +411,197 @@ public class ClipboardClassifier {
     // -------------------------------------------------------------------------
 
     private ClassificationResult checkError(String text, boolean sensitive) {
-        boolean isJavaTrace   = JAVA_STACKTRACE.matcher(text).find();
-        boolean isPyTrace     = PYTHON_TRACEBACK.matcher(text).find();
-        boolean isExcPattern  = EXCEPTION_PATTERN.matcher(text).find();
-        boolean hasErrorLabel = text.contains("FATAL:") || text.contains("ERROR:") || text.contains("FAILED:");
+        boolean isJavaTrace       = JAVA_STACKTRACE.matcher(text).find();
+        boolean isPyTrace         = PYTHON_TRACEBACK.matcher(text).find();
+        boolean isExcPattern      = EXCEPTION_PATTERN.matcher(text).find();
+        boolean isPyException     = PYTHON_EXCEPTION_LINE.matcher(text).find();
+        boolean isJavaException   = JAVA_EXCEPTION_LINE.matcher(text).find();
+        boolean isBuildOrToolErr  = BUILD_OR_TOOL_ERROR.matcher(text).find();
+        boolean hasErrorLabel     = text.contains("FATAL:") || text.contains("ERROR:") || text.contains("FAILED:")
+                || text.startsWith("fatal: ") || text.startsWith("error: ") || text.contains("cannot find symbol")
+                || text.contains("incompatible types");
 
-        if (!isJavaTrace && !isPyTrace && !isExcPattern && !hasErrorLabel) return null;
+        if (!isJavaTrace && !isPyTrace && !isExcPattern && !isPyException && !isJavaException && !isBuildOrToolErr && !hasErrorLabel) {
+            return null;
+        }
 
         List<String> techs = new ArrayList<>();
         String language = null;
         String lower = text.toLowerCase();
 
-        if (isPyTrace || lower.contains("traceback") || text.contains(".py\"")) {
+        if (isPyTrace || isPyException || lower.contains("traceback") || text.contains(".py\"") || lower.contains("modulenotfounderror")) {
             techs.add("PYTHON"); language = "PYTHON";
-        } else if (isJavaTrace || lower.contains("springframework") || text.contains(".java:")) {
+        } else if (isJavaTrace || isJavaException || lower.contains("springframework") || text.contains(".java:") || text.contains("javac:")) {
             if (lower.contains("springframework") || lower.contains("spring")) techs.add("SPRING_BOOT");
             techs.add("JAVA"); language = "JAVA";
+        } else if (lower.contains("npm err") || lower.contains("npm error") || lower.contains("eresolve")) {
+            techs.add("NODE_JS"); language = "JAVASCRIPT";
+        } else if (lower.contains("error ts") || lower.contains("type '") && lower.contains("' is not assignable to type")) {
+            techs.add("TYPESCRIPT"); language = "TYPESCRIPT";
+        } else if (lower.contains("error[e") || lower.contains("rustc")) {
+            techs.add("RUST"); language = "RUST";
         } else if (lower.contains("react") || lower.contains(".tsx:") || lower.contains(".jsx:")) {
             techs.add("REACT"); language = "TYPESCRIPT";
         } else if (lower.contains("node") || lower.contains(".js:")) {
             techs.add("NODE_JS"); language = "JAVASCRIPT";
-        } else if (lower.contains("docker")) {
+        } else if (lower.contains("fatal: not a git repository") || lower.contains("failed to push some refs") || lower.contains("git")) {
+            techs.add("GIT");
+        } else if (lower.contains("docker") || lower.contains("error response from daemon")) {
             techs.add("DOCKER");
+        } else if (lower.contains("failed to execute goal") || lower.contains("build failure")) {
+            techs.add("MAVEN");
+        } else if (lower.contains("build failed with an exception")) {
+            techs.add("GRADLE");
         }
 
         if (text.contains("PSQLException") || text.contains("SQLException")) techs.add("POSTGRESQL");
 
-        String type = (isJavaTrace || isPyTrace || isExcPattern) ? "STACK_TRACE" : "ERROR_MESSAGE";
-        return ClassificationResult.of(type, language, techs, List.of("DEBUG"), sensitive, 0.95f);
+        boolean isTrace = isJavaTrace || isPyTrace || isExcPattern || text.contains("\tat ");
+        String type = isTrace ? "STACK_TRACE" : "ERROR_MESSAGE";
+        List<String> cats = List.of("DEBUG", "TROUBLESHOOTING");
+        return ClassificationResult.of(type, language, techs, cats, sensitive, 0.95f);
+    }
+
+    // -------------------------------------------------------------------------
+    // Mathematical & Scientific Formulas (LaTeX + Unicode Math)
+    // -------------------------------------------------------------------------
+
+    private ClassificationResult checkMath(String text, boolean sensitive) {
+        boolean hasLatex = LATEX_MATH_COMMAND.matcher(text).find();
+        boolean hasUnicodeMath = UNICODE_MATH_SYMBOLS.matcher(text).find();
+        boolean hasGreek = GREEK_MATH_LETTERS.matcher(text).find();
+        boolean hasScripts = MATH_SUPERSCRIPTS_SUBSCRIPTS.matcher(text).find();
+
+        if (!hasLatex && !hasUnicodeMath && !(hasGreek && (hasScripts || text.contains("=") || text.contains("^")))) {
+            return null;
+        }
+
+        // False-positive guard against ordinary prose
+        if (!hasLatex) {
+            long symbolCount = text.codePoints().filter(c -> {
+                String s = Character.toString(c);
+                return UNICODE_MATH_SYMBOLS.matcher(s).matches()
+                        || GREEK_MATH_LETTERS.matcher(s).matches()
+                        || MATH_SUPERSCRIPTS_SUBSCRIPTS.matcher(s).matches();
+            }).count();
+
+            if (symbolCount < 2 && !text.contains("=") && !text.contains("^") && !text.contains("/") && !text.contains("dx")) {
+                return null;
+            }
+        }
+
+        List<String> techs = new ArrayList<>();
+        List<String> cats = new ArrayList<>();
+        cats.add("MATHEMATICS");
+
+        String lower = text.toLowerCase();
+        boolean isCalculus = text.contains("\\int") || text.contains("∫") || text.contains("\\partial") || text.contains("∂")
+                || text.contains("dx") || text.contains("dy") || text.contains("dt") || text.contains("\\lim") || text.contains("\\sum") || text.contains("∑");
+
+        // Physics domain detection (Navier-Stokes, Schrödinger, Maxwell)
+        boolean isNavierStokes = (text.contains("\\nabla") || text.contains("∇") || text.contains("nabla"))
+                && (text.contains("\\partial") || text.contains("∂"))
+                && (text.contains("\\rho") || text.contains("ρ") || text.contains("\\nu") || text.contains("ν") || lower.contains("navier") || text.contains("∇²") || text.contains("\\nabla^2"));
+
+        boolean isSchrodinger = (text.contains("Ψ") || text.contains("\\psi") || text.contains("\\Psi") || lower.contains("schrodinger") || lower.contains("schrödinger"))
+                && (text.contains("ℏ") || text.contains("\\hbar") || text.contains("Ĥ") || text.contains("\\hat{H}") || text.contains("iℏ"));
+
+        boolean isMaxwell = (text.contains("∇ ·") || text.contains("\\nabla \\cdot") || text.contains("∇ ×") || text.contains("\\nabla \\times") || lower.contains("maxwell"))
+                && (text.contains("E") || text.contains("B") || text.contains("D") || text.contains("H"));
+
+        // Statistics / distributions (Gamma, Beta, Normal, Poisson, Binomial)
+        boolean isGamma = ((text.contains("Γ") || text.contains("\\Gamma") || lower.contains("gamma"))
+                && (text.contains("k-1") || text.contains("k - 1") || text.contains("e^{-") || text.contains("e^(-") || text.contains("theta") || text.contains("θ")))
+                || ((text.contains("k-1") || text.contains("k - 1")) && (text.contains("e^{-") || text.contains("e^(-")));
+
+        boolean isStats = isGamma || text.contains("Normal(") || text.contains("Poisson(") || text.contains("Binomial(")
+                || (text.contains("P(") && text.contains("|") && text.contains(")"))
+                || text.contains("\\sigma") || text.contains("σ") || text.contains("\\mu") || text.contains("μ");
+
+        if (isNavierStokes || isSchrodinger || isMaxwell) {
+            techs.add("PHYSICS");
+            cats.add("SCIENCE");
+        }
+        if (isStats) {
+            techs.add("STATISTICS");
+        }
+        if (isCalculus) {
+            techs.add("CALCULUS");
+        }
+
+        if (hasLatex) {
+            techs.add(0, "LATEX");
+            return ClassificationResult.of("FORMULA", "LATEX", techs, cats, sensitive, 0.96f);
+        } else {
+            if (techs.isEmpty()) techs.add("MATHEMATICS");
+            return ClassificationResult.of("FORMULA", "UNICODE_MATH", techs, cats, sensitive, 0.95f);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Multilingual Script Detection
+    // -------------------------------------------------------------------------
+
+    private ClassificationResult checkMultilingual(String text, boolean sensitive) {
+        String lang = null;
+        if (hasScriptMatches(text, SCRIPT_TAMIL, 2)) {
+            lang = "TAMIL";
+        } else if (hasScriptMatches(text, SCRIPT_HINDI, 2)) {
+            lang = "HINDI";
+        } else if (hasScriptMatches(text, SCRIPT_TELUGU, 2)) {
+            lang = "TELUGU";
+        } else if (hasScriptMatches(text, SCRIPT_KANNADA, 2)) {
+            lang = "KANNADA";
+        } else if (hasScriptMatches(text, SCRIPT_MALAYALAM, 2)) {
+            lang = "MALAYALAM";
+        } else if (hasScriptMatches(text, SCRIPT_BENGALI, 2)) {
+            lang = "BENGALI";
+        } else if (hasScriptMatches(text, SCRIPT_GUJARATI, 2)) {
+            lang = "GUJARATI";
+        } else if (hasScriptMatches(text, SCRIPT_PUNJABI, 2)) {
+            lang = "PUNJABI";
+        } else if (hasScriptMatches(text, SCRIPT_ARABIC, 2)) {
+            lang = "ARABIC";
+        } else if (hasScriptMatches(text, SCRIPT_JAPANESE, 2)) {
+            lang = "JAPANESE";
+        } else if (hasScriptMatches(text, SCRIPT_CHINESE, 2)) {
+            lang = "CHINESE";
+        } else if (hasScriptMatches(text, SCRIPT_KOREAN, 2)) {
+            lang = "KOREAN";
+        } else if (hasScriptMatches(text, SCRIPT_CYRILLIC, 3)) {
+            lang = "RUSSIAN";
+        }
+
+        if (lang != null) {
+            return ClassificationResult.of("PLAIN_TEXT", lang, List.of(lang), List.of("COMMUNICATION", "GENERAL"), sensitive, 0.95f);
+        }
+
+        // Latin European languages detection (French, German, Spanish)
+        String lower = " " + text.toLowerCase() + " ";
+        if (text.matches(".*[éèêàçùôî].*") || (lower.contains(" le ") && lower.contains(" la ") && lower.contains(" et "))
+                || lower.contains(" c'est ") || lower.contains(" dans le ")) {
+            return ClassificationResult.of("PLAIN_TEXT", "FRENCH", List.of("FRENCH"), List.of("COMMUNICATION", "GENERAL"), sensitive, 0.85f);
+        }
+        if (text.matches(".*[äöüß].*") || (lower.contains(" der ") && lower.contains(" die ") && lower.contains(" und "))
+                || lower.contains(" nicht ") || lower.contains(" das ist ")) {
+            return ClassificationResult.of("PLAIN_TEXT", "GERMAN", List.of("GERMAN"), List.of("COMMUNICATION", "GENERAL"), sensitive, 0.85f);
+        }
+        if (text.matches(".*[ñáíóú¿¡].*") || (lower.contains(" el ") && lower.contains(" la ") && lower.contains(" y "))
+                || lower.contains(" por favor ") || lower.contains(" de la ")) {
+            return ClassificationResult.of("PLAIN_TEXT", "SPANISH", List.of("SPANISH"), List.of("COMMUNICATION", "GENERAL"), sensitive, 0.85f);
+        }
+
+        return null;
+    }
+
+    private boolean hasScriptMatches(String text, Pattern pattern, int minMatches) {
+        var matcher = pattern.matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+            if (count >= minMatches) return true;
+        }
+        return false;
     }
 
     // -------------------------------------------------------------------------
@@ -370,14 +620,11 @@ public class ClipboardClassifier {
     // -------------------------------------------------------------------------
 
     private ClassificationResult checkCommand(String text, boolean sensitive) {
-        // Only look at first non-blank line for command detection.
-        // This is the false-positive guard: if the first line doesn't look like a command,
-        // we don't classify the whole block as a command.
         String firstLine = text.lines().filter(l -> !l.isBlank()).findFirst().orElse("").trim();
 
         if (SHELL_SHEBANG.matcher(text).find()) {
             String lang = detectScriptLanguage(text);
-            return ClassificationResult.of("COMMAND", lang, List.of(), List.of("DEVOPS"), sensitive, 0.9f);
+            return ClassificationResult.of("COMMAND", lang, List.of(lang), List.of("DEVOPS"), sensitive, 0.9f);
         }
         if (DOCKER_CMD.matcher(firstLine).matches()) {
             return ClassificationResult.of("COMMAND", "SHELL", List.of("DOCKER"), List.of("DEVOPS"), sensitive, 0.97f);
@@ -386,7 +633,10 @@ public class ClipboardClassifier {
             return ClassificationResult.of("COMMAND", "SHELL", List.of("GIT"), List.of("DEVOPS"), sensitive, 0.97f);
         }
         if (KUBECTL_CMD.matcher(firstLine).matches()) {
-            return ClassificationResult.of("COMMAND", "SHELL", List.of("KUBERNETES"), List.of("DEVOPS"), sensitive, 0.97f);
+            List<String> techs = firstLine.toLowerCase().startsWith("helm")
+                    ? List.of("KUBERNETES", "HELM")
+                    : List.of("KUBERNETES");
+            return ClassificationResult.of("COMMAND", "SHELL", techs, List.of("DEVOPS"), sensitive, 0.97f);
         }
         if (AWS_CMD.matcher(firstLine).matches()) {
             return ClassificationResult.of("COMMAND", "SHELL", List.of("AWS"), List.of("DEVOPS"), sensitive, 0.97f);
@@ -394,14 +644,35 @@ public class ClipboardClassifier {
         if (MAVEN_CMD.matcher(firstLine).matches()) {
             return ClassificationResult.of("COMMAND", "SHELL", List.of("MAVEN"), List.of("DEVOPS", "BUILD"), sensitive, 0.97f);
         }
+        if (GRADLE_CMD.matcher(firstLine).matches()) {
+            return ClassificationResult.of("COMMAND", "SHELL", List.of("GRADLE"), List.of("DEVOPS", "BUILD"), sensitive, 0.97f);
+        }
         if (NODE_CMD.matcher(firstLine).matches()) {
             return ClassificationResult.of("COMMAND", "SHELL", List.of("NODE_JS"), List.of("DEVOPS", "BUILD"), sensitive, 0.97f);
         }
         if (PYTHON_CMD.matcher(firstLine).matches()) {
             return ClassificationResult.of("COMMAND", "PYTHON", List.of("PYTHON"), List.of("DEVOPS"), sensitive, 0.97f);
         }
+        if (RUST_CMD.matcher(firstLine).matches()) {
+            return ClassificationResult.of("COMMAND", "SHELL", List.of("RUST", "CARGO"), List.of("BUILD", "DEVOPS"), sensitive, 0.97f);
+        }
+        if (GO_CMD.matcher(firstLine).matches()) {
+            return ClassificationResult.of("COMMAND", "SHELL", List.of("GO"), List.of("BUILD", "DEVOPS"), sensitive, 0.97f);
+        }
+        if (DOTNET_CMD.matcher(firstLine).matches()) {
+            return ClassificationResult.of("COMMAND", "SHELL", List.of("DOTNET"), List.of("BUILD", "DEVOPS"), sensitive, 0.97f);
+        }
+        if (COMPOSER_CMD.matcher(firstLine).matches()) {
+            return ClassificationResult.of("COMMAND", "SHELL", List.of("PHP", "COMPOSER"), List.of("BUILD", "DEVOPS"), sensitive, 0.97f);
+        }
+        if (RUBY_CMD.matcher(firstLine).matches()) {
+            return ClassificationResult.of("COMMAND", "SHELL", List.of("RUBY"), List.of("BUILD", "DEVOPS"), sensitive, 0.97f);
+        }
         if (JAVA_CMD.matcher(firstLine).matches()) {
             return ClassificationResult.of("COMMAND", "SHELL", List.of("JAVA"), List.of("BUILD"), sensitive, 0.97f);
+        }
+        if (PKG_MGR_CMD.matcher(firstLine).matches()) {
+            return ClassificationResult.of("COMMAND", "SHELL", List.of("SHELL"), List.of("DEVOPS", "SYSTEM"), sensitive, 0.92f);
         }
         if (POWERSHELL_CMD.matcher(firstLine).matches()) {
             return ClassificationResult.of("COMMAND", "POWERSHELL", List.of("POWERSHELL"), List.of("DEVOPS"), sensitive, 0.9f);
@@ -469,6 +740,14 @@ public class ClipboardClassifier {
             String lang = text.contains(":") && YAML_STRUCTURE.matcher(text).find() ? "YAML" : "PROPERTIES";
             return ClassificationResult.of("CONFIGURATION", lang, techs, cats, sensitive, 0.93f);
         }
+        if (TOML_STRUCTURE.matcher(text).find() && (text.contains("=") || text.contains("\""))) {
+            techs.add("TOML"); cats.add("CONFIGURATION");
+            return ClassificationResult.of("CONFIGURATION", "TOML", techs, cats, sensitive, 0.9f);
+        }
+        if (MAKEFILE_STRUCTURE.matcher(text).find() && text.contains("\t")) {
+            techs.add("MAKEFILE"); cats.add("BUILD"); cats.add("CONFIGURATION");
+            return ClassificationResult.of("CONFIGURATION", "MAKEFILE", techs, cats, sensitive, 0.9f);
+        }
         // Generic YAML: must have multiple key: value lines
         long yamlLines = text.lines().filter(l -> l.matches("^[a-zA-Z_][a-zA-Z0-9_\\-]*:\\s*.*")).count();
         if (yamlLines >= 3 && text.contains(":\n") || (yamlLines >= 3 && text.contains(": "))) {
@@ -489,15 +768,15 @@ public class ClipboardClassifier {
     // Code detection with false-positive guard
     // -------------------------------------------------------------------------
 
-    /**
-     * Code detection uses a two-gate approach:
-     * <ol>
-     *   <li>Language-specific STRONG markers (imports, class declarations, brackets)</li>
-     *   <li>A false-positive guard: ordinary English prose must NOT trigger code detection
-     *       just because it mentions a technology name.</li>
-     * </ol>
-     */
     private ClassificationResult checkCode(String text, boolean sensitive) {
+        // C++ (before C)
+        if (isCpp(text)) {
+            return ClassificationResult.of("CODE", "CPP", List.of("CPP"), List.of("PROGRAMMING"), sensitive, 0.93f);
+        }
+        // C
+        if (isC(text)) {
+            return ClassificationResult.of("CODE", "C", List.of("C"), List.of("PROGRAMMING"), sensitive, 0.92f);
+        }
         // TypeScript (before JS, more specific)
         if (isTypeScript(text)) {
             List<String> techs = new ArrayList<>();
@@ -507,6 +786,10 @@ public class ClipboardClassifier {
             if (text.contains("NestJS") || text.contains("@Module") || text.contains("@Injectable")) techs.add("NODE_JS");
             List<String> cats = isReact ? List.of("WEB", "PROGRAMMING") : List.of("PROGRAMMING");
             return ClassificationResult.of("CODE", "TYPESCRIPT", techs, cats, sensitive, 0.93f);
+        }
+        // C# / .NET (before Java so using System doesn't trigger Java public class)
+        if (isCSharp(text)) {
+            return ClassificationResult.of("CODE", "CSHARP", List.of("DOTNET", "CSHARP"), List.of("PROGRAMMING"), sensitive, 0.93f);
         }
         // Java / Spring Boot
         if (isJava(text)) {
@@ -522,6 +805,10 @@ public class ClipboardClassifier {
             if (isSpringBoot(text)) techs.add("SPRING_BOOT");
             return ClassificationResult.of("CODE", "KOTLIN", techs, List.of("PROGRAMMING"), sensitive, 0.9f);
         }
+        // Swift
+        if (isSwift(text)) {
+            return ClassificationResult.of("CODE", "SWIFT", List.of("SWIFT"), List.of("PROGRAMMING"), sensitive, 0.92f);
+        }
         // Python
         if (isPython(text)) {
             List<String> techs = new ArrayList<>();
@@ -533,6 +820,26 @@ public class ClipboardClassifier {
             if (text.contains("numpy") || text.contains("np.")) techs.add("NUMPY");
             return ClassificationResult.of("CODE", "PYTHON", techs, List.of("PROGRAMMING"), sensitive, 0.95f);
         }
+        // Go
+        if (isGo(text)) {
+            return ClassificationResult.of("CODE", "GO", List.of("GO"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        }
+        // Rust
+        if (isRust(text)) {
+            return ClassificationResult.of("CODE", "RUST", List.of("RUST"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        }
+        // Dart
+        if (isDart(text)) {
+            return ClassificationResult.of("CODE", "DART", List.of("DART"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        }
+        // Ruby
+        if (isRuby(text)) {
+            return ClassificationResult.of("CODE", "RUBY", List.of("RUBY"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        }
+        // PHP
+        if (isPhp(text)) {
+            return ClassificationResult.of("CODE", "PHP", List.of("PHP"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        }
         // JavaScript (after TS since TS is more specific)
         if (isJavaScript(text)) {
             List<String> techs = new ArrayList<>();
@@ -543,21 +850,25 @@ public class ClipboardClassifier {
             List<String> cats = isReact ? List.of("WEB", "PROGRAMMING") : List.of("PROGRAMMING");
             return ClassificationResult.of("CODE", "JAVASCRIPT", techs, cats, sensitive, 0.9f);
         }
-        // Go
-        if (isGo(text)) {
-            return ClassificationResult.of("CODE", "GO", List.of("GO"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        // Scala
+        if (isScala(text)) {
+            return ClassificationResult.of("CODE", "SCALA", List.of("SCALA"), List.of("PROGRAMMING"), sensitive, 0.9f);
         }
-        // Rust
-        if (isRust(text)) {
-            return ClassificationResult.of("CODE", "RUST", List.of("RUST"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        // R
+        if (isR(text)) {
+            return ClassificationResult.of("CODE", "R", List.of("R"), List.of("PROGRAMMING"), sensitive, 0.88f);
         }
-        // C# / .NET
-        if (isCSharp(text)) {
-            return ClassificationResult.of("CODE", "CSHARP", List.of("DOTNET"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        // MATLAB
+        if (isMatlab(text)) {
+            return ClassificationResult.of("CODE", "MATLAB", List.of("MATLAB"), List.of("PROGRAMMING"), sensitive, 0.88f);
         }
-        // PHP
-        if (isPhp(text)) {
-            return ClassificationResult.of("CODE", "PHP", List.of("PHP"), List.of("PROGRAMMING"), sensitive, 0.9f);
+        // Perl
+        if (isPerl(text)) {
+            return ClassificationResult.of("CODE", "PERL", List.of("PERL"), List.of("PROGRAMMING"), sensitive, 0.88f);
+        }
+        // Lua
+        if (isLua(text)) {
+            return ClassificationResult.of("CODE", "LUA", List.of("LUA"), List.of("PROGRAMMING"), sensitive, 0.88f);
         }
         // HTML/CSS (after all code checks)
         if (isHtml(text)) {
@@ -594,7 +905,6 @@ public class ClipboardClassifier {
         if (isPython(t)) {
             return false;
         }
-        // Must have TS-specific syntax, not just keywords
         boolean hasTsType = t.contains(": string") || t.contains(": number") || t.contains(": boolean")
                 || t.contains(": void") || t.contains(": any") || t.contains(": unknown") || t.contains("interface ")
                 || (t.contains("type ") && t.contains(" = {")) || t.contains("<T>")
@@ -606,6 +916,9 @@ public class ClipboardClassifier {
     }
 
     private boolean isJava(String t) {
+        if (isCSharp(t)) {
+            return false;
+        }
         boolean standardJava = t.contains("public class ") || t.contains("private class ")
                 || t.contains("protected class ") || t.contains("abstract class ")
                 || t.contains("public interface ") || t.contains("public enum ")
@@ -641,25 +954,31 @@ public class ClipboardClassifier {
         return (t.contains("fun ") && t.contains(":") && (t.contains("{") || t.contains("=>")))
                 && (t.contains("val ") || t.contains("var ") || t.contains("data class ")
                 || t.contains("object ") || t.contains("companion object"))
-                && !t.contains("public class "); // not Java
+                && !t.contains("public class ");
+    }
+
+    private boolean isSwift(String t) {
+        return (t.contains("import UIKit") || t.contains("import SwiftUI") || t.contains("import Foundation"))
+                || ((t.contains("func ") || t.contains("struct ")) && (t.contains("@State") || t.contains("@Binding") || t.contains(": View") || t.contains("guard let ")))
+                && hasSyntaxBrackets(t);
     }
 
     private boolean isPython(String t) {
-        // Guard: must not look like Java or C-family languages (semicolons with braces or standard Java keywords)
+        if (t.contains("package ") || t.contains("func ") || t.contains("fn ")) {
+            return false;
+        }
         boolean looksLikeJavaOrC = (t.contains("{") && t.contains("}") && t.contains(";"))
                 || t.contains("public class ") || t.contains("private ") || t.contains("System.out.")
                 || t.contains("import java.") || t.contains("import jakarta.") || t.contains("namespace ");
         if (looksLikeJavaOrC) return false;
 
-        // Python imports: lines starting with 'import ' or 'from ... import '
-        // Check line-by-line so that dictionaries/sets in later lines don't disqualify the import
         boolean hasPythonImport = t.lines().anyMatch(line -> {
             String l = line.trim();
             return (l.startsWith("import ") || l.startsWith("from "))
                     && !l.endsWith(";")
                     && !l.contains(";")
-                    && !l.contains("{") // import statement itself shouldn't be JS destructuring: import { x } from 'y'
-                    && !l.contains(" from '") // not JS/TS: import x from 'y'
+                    && !l.contains("{")
+                    && !l.contains(" from '")
                     && !l.contains(" from \"");
         });
 
@@ -675,7 +994,9 @@ public class ClipboardClassifier {
     }
 
     private boolean isJavaScript(String t) {
-        // Must have both JS keywords AND syntax brackets/semicolons — prose won't have this
+        if (isRust(t) || isDart(t)) {
+            return false;
+        }
         boolean hasKeyword = t.contains("const ") || t.contains("let ") || t.contains("var ")
                 || t.contains("function ") || t.contains("console.log(") || t.contains("=> {")
                 || t.contains("async ") || t.contains("await ") || t.contains("require(")
@@ -683,26 +1004,82 @@ public class ClipboardClassifier {
         return hasKeyword && hasSyntaxBrackets(t);
     }
 
+    private boolean isCpp(String t) {
+        boolean cppHeaders = t.contains("#include <iostream>") || t.contains("#include <vector>")
+                || t.contains("#include <string>") || t.contains("#include <map>") || t.contains("#include <memory>");
+        boolean cppSyntax = t.contains("std::cout") || t.contains("std::vector") || t.contains("std::string")
+                || t.contains("std::endl") || t.contains("std::cin") || t.contains("nullptr")
+                || t.contains("template <") || t.contains("template<") || (t.contains("namespace ") && t.contains("std"));
+        return (cppHeaders || cppSyntax) && hasSyntaxBrackets(t);
+    }
+
+    private boolean isC(String t) {
+        boolean cHeaders = t.contains("#include <stdio.h>") || t.contains("#include <stdlib.h>")
+                || t.contains("#include <string.h>") || t.contains("#include <unistd.h>");
+        boolean cKeywords = (t.contains("printf(") || t.contains("malloc(") || t.contains("free(") || t.contains("sizeof("))
+                && (t.contains("int main(") || t.contains("void main("))
+                && t.contains(";");
+        return (cHeaders || cKeywords) && hasSyntaxBrackets(t) && !isCpp(t);
+    }
+
     private boolean isGo(String t) {
-        return t.contains("package ") && t.contains("import (") && t.contains("func ")
-                && t.contains("{") && t.contains("}");
+        return (t.contains("package ") && (t.contains("func ") || t.contains("import (")))
+                && (t.contains("fmt.Println") || t.contains(":=") || (t.contains("{") && t.contains("}")));
     }
 
     private boolean isRust(String t) {
         return (t.contains("fn ") && t.contains("->") && t.contains("{"))
-                && (t.contains("let mut ") || t.contains("impl ") || t.contains("use std::")
-                || t.contains("pub fn") || t.contains("struct ") || t.contains("enum "));
+                || ((t.contains("fn main()") || t.contains("pub fn ")) && (t.contains("let mut ") || t.contains("println!") || t.contains("use std::")));
     }
 
     private boolean isCSharp(String t) {
-        return (t.contains("using System") || t.contains("namespace ") || t.contains("public class ")
-                || t.contains("static void Main") || t.contains("Console.WriteLine"))
-                && t.contains("{") && t.contains("}") && t.contains(";");
+        boolean hasCsKeyword = t.contains("using System") || t.contains("Console.WriteLine")
+                || t.contains("static void Main") || (t.contains("namespace ") && !t.contains("package ") && !t.contains("import java."));
+        return hasCsKeyword && t.contains("{") && t.contains("}") && t.contains(";")
+                && !t.contains("import java.") && !t.contains("System.out.");
     }
 
     private boolean isPhp(String t) {
         return t.contains("<?php") || (t.contains("$") && t.contains("->") && t.contains(";")
                 && (t.contains("function ") || t.contains("class ")));
+    }
+
+    private boolean isRuby(String t) {
+        boolean hasRubyMarkers = t.contains("attr_accessor") || t.contains("puts ") || t.contains("require '") || t.contains("#{");
+        return (t.contains("def ") && t.contains("end") && hasRubyMarkers)
+                && !t.contains("public class ") && !t.contains(";") && !t.contains("function ");
+    }
+
+    private boolean isDart(String t) {
+        return (t.contains("import 'package:flutter/") || t.contains("Widget build(BuildContext context)"))
+                || (t.contains("void main()") && t.contains("runApp("));
+    }
+
+    private boolean isScala(String t) {
+        return (t.contains("object ") || t.contains("case class ") || t.contains("sealed trait "))
+                && (t.contains("def main(args: Array[String])") || (t.contains("val ") && t.contains(": String")) || t.contains("extends App"))
+                && hasSyntaxBrackets(t);
+    }
+
+    private boolean isR(String t) {
+        return (t.contains("<- function(") || t.contains("data.frame(") || t.contains("ggplot("))
+                && (t.contains("library(") || t.contains("<- c("));
+    }
+
+    private boolean isMatlab(String t) {
+        return (t.contains("function [") || t.contains("clear all;") || t.contains("clc;"))
+                && (t.contains("plot(") || t.contains("end\n") || t.endsWith("end"));
+    }
+
+    private boolean isPerl(String t) {
+        return (t.contains("use strict;") || t.contains("use warnings;"))
+                && (t.contains("my $") || t.contains("print \""));
+    }
+
+    private boolean isLua(String t) {
+        return (t.contains("local function ") || (t.contains("local ") && t.contains("=")))
+                && (t.contains("then\n") || t.contains("do\n"))
+                && t.contains("end") && !t.contains("{");
     }
 
     private boolean isHtml(String t) {
@@ -718,7 +1095,6 @@ public class ClipboardClassifier {
     }
 
     private boolean isShellScript(String t) {
-        // Multi-line with shell constructs
         long lines = t.lines().count();
         if (lines < 2) return false;
         return t.contains("if [") || t.contains("fi") || t.contains("done") || t.contains("for ")
